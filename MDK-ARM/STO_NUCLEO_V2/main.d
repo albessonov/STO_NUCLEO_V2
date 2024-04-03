@@ -50,3 +50,5 @@ sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wra
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
+sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h

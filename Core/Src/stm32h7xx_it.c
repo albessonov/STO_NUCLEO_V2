@@ -56,6 +56,7 @@
 
 /* External variables --------------------------------------------------------*/
 extern FDCAN_HandleTypeDef hfdcan1;
+extern SPI_HandleTypeDef hspi3;
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim13;
 
@@ -162,6 +163,20 @@ void DebugMon_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles EXTI line1 interrupt.
+  */
+void EXTI1_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI1_IRQn 0 */
+
+  /* USER CODE END EXTI1_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(CH2_Pin);
+  /* USER CODE BEGIN EXTI1_IRQn 1 */
+
+  /* USER CODE END EXTI1_IRQn 1 */
+}
+
+/**
   * @brief This function handles FDCAN1 interrupt 0.
   */
 void FDCAN1_IT0_IRQHandler(void)
@@ -215,6 +230,20 @@ void TIM8_UP_TIM13_IRQHandler(void)
   /* USER CODE BEGIN TIM8_UP_TIM13_IRQn 1 */
 
   /* USER CODE END TIM8_UP_TIM13_IRQn 1 */
+}
+
+/**
+  * @brief This function handles SPI3 global interrupt.
+  */
+void SPI3_IRQHandler(void)
+{
+  /* USER CODE BEGIN SPI3_IRQn 0 */
+
+  /* USER CODE END SPI3_IRQn 0 */
+  HAL_SPI_IRQHandler(&hspi3);
+  /* USER CODE BEGIN SPI3_IRQn 1 */
+
+  /* USER CODE END SPI3_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
