@@ -1,5 +1,9 @@
 --cpu Cortex-M7.fp.dp
 "sto_nucleo_v2\startup_stm32h743xx.o"
+"sto_nucleo_v2\pb_common.o"
+"sto_nucleo_v2\pb_decode.o"
+"sto_nucleo_v2\pb_encode.o"
+"sto_nucleo_v2\sto_tests_v2_nanopb.pb.o"
 "sto_nucleo_v2\main.o"
 "sto_nucleo_v2\freertos.o"
 "sto_nucleo_v2\stm32h7xx_it.o"
@@ -22,6 +26,8 @@
 "sto_nucleo_v2\stm32h7xx_hal_i2c.o"
 "sto_nucleo_v2\stm32h7xx_hal_i2c_ex.o"
 "sto_nucleo_v2\stm32h7xx_hal_exti.o"
+"sto_nucleo_v2\stm32h7xx_hal_rtc.o"
+"sto_nucleo_v2\stm32h7xx_hal_rtc_ex.o"
 "sto_nucleo_v2\stm32h7xx_hal_spi.o"
 "sto_nucleo_v2\stm32h7xx_hal_spi_ex.o"
 "sto_nucleo_v2\stm32h7xx_hal_tim.o"

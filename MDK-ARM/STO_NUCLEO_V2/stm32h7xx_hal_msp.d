@@ -33,6 +33,8 @@ sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx
 sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h
 sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h
 sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h
+sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rtc.h
+sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rtc_ex.h
 sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi.h
 sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi_ex.h
 sto_nucleo_v2\stm32h7xx_hal_msp.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h

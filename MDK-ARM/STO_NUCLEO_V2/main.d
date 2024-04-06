@@ -33,6 +33,8 @@ sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h
+sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rtc.h
+sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rtc_ex.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi_ex.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h
@@ -52,3 +54,9 @@ sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+sto_nucleo_v2\main.o: ../Core/Inc/pb_encode.h
+sto_nucleo_v2\main.o: ../Core/Inc/pb.h
+sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+sto_nucleo_v2\main.o: ../Core/Inc/pb_decode.h
+sto_nucleo_v2\main.o: ../Core/Inc/pb_common.h
+sto_nucleo_v2\main.o: ../Core/Inc/STO_tests_V2_nanopb.pb.h

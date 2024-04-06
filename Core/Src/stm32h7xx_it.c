@@ -58,6 +58,7 @@
 extern FDCAN_HandleTypeDef hfdcan1;
 extern SPI_HandleTypeDef hspi3;
 extern TIM_HandleTypeDef htim1;
+extern UART_HandleTypeDef huart4;
 extern TIM_HandleTypeDef htim13;
 
 /* USER CODE BEGIN EV */
@@ -244,6 +245,20 @@ void SPI3_IRQHandler(void)
   /* USER CODE BEGIN SPI3_IRQn 1 */
 
   /* USER CODE END SPI3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles UART4 global interrupt.
+  */
+void UART4_IRQHandler(void)
+{
+  /* USER CODE BEGIN UART4_IRQn 0 */
+
+  /* USER CODE END UART4_IRQn 0 */
+  HAL_UART_IRQHandler(&huart4);
+  /* USER CODE BEGIN UART4_IRQn 1 */
+
+  /* USER CODE END UART4_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
