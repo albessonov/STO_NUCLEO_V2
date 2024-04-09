@@ -9,6 +9,7 @@
 "sto_nucleo_v2\stm32h7xx_it.o"
 "sto_nucleo_v2\stm32h7xx_hal_msp.o"
 "sto_nucleo_v2\stm32h7xx_hal_timebase_tim.o"
+"sto_nucleo_v2\freertos_tasks.o"
 "sto_nucleo_v2\stm32h7xx_hal_cortex.o"
 "sto_nucleo_v2\stm32h7xx_hal_fdcan.o"
 "sto_nucleo_v2\stm32h7xx_hal_rcc.o"

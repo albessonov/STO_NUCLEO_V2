@@ -54,9 +54,11 @@ sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 sto_nucleo_v2\main.o: ../Core/Inc/pb_encode.h
 sto_nucleo_v2\main.o: ../Core/Inc/pb.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
 sto_nucleo_v2\main.o: ../Core/Inc/pb_decode.h
 sto_nucleo_v2\main.o: ../Core/Inc/pb_common.h
 sto_nucleo_v2\main.o: ../Core/Inc/STO_tests_V2_nanopb.pb.h
+sto_nucleo_v2\main.o: ../Core/Inc/FREERTOS_tasks.h

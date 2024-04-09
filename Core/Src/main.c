@@ -24,10 +24,12 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "pb_encode.h"
 #include "pb_decode.h"
 #include "pb_common.h"
 #include "STO_tests_V2_nanopb.pb.h"
+#include "FREERTOS_tasks.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,7 +72,7 @@ UART_HandleTypeDef huart4;
 osThreadId_t Init_testHandle;
 const osThreadAttr_t Init_test_attributes = {
   .name = "Init_test",
-  .stack_size = 1024 * 4,
+  .stack_size = 4096 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for CAN_period */
@@ -91,7 +93,7 @@ const osThreadAttr_t Accelerometer_run_attributes = {
 FDCAN_TxHeaderTypeDef TxHeader;
 FDCAN_RxHeaderTypeDef RxHeader;
 volatile uint32_t time;
-uint8_t UARTRXcmd[2]={0,0};
+uint8_t UARTRXcmd[4]={0,0,};
 uint8_t testbuf[4]={0xAA,0xAA,0xAA,0xAA};
 uint32_t result_1=0;//must be moved to first task
 uint32_t timelist[50]={0,};
@@ -107,13 +109,16 @@ const uint8_t Request0x2cmd[]={0x50,0x00,0x00,0xfc};
 volatile double timeX=-100.5,timeY=-100.5;
 uint8_t RCOMMAND0x00=0b10000100;
 uint8_t RCOMMAND0x02=0b10100100;
-static uint32_t ctr2=0;
-static uint32_t ctr0=0;
+uint32_t ctr2=0;
+uint32_t ctr0=0;
+uint32_t TTF;
 volatile bool SPI_STOP_FLAG=false;
 
-
+extern TestData Output, Input;
 RTC_TimeTypeDef sTime = {0};
 RTC_DateTypeDef sDate = {0};
+
+uint32_t average; //buffer_average
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -133,7 +138,6 @@ static void FDCAN1_Config(void);
 static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate,uint8_t size);
 static uint8_t CRC8(uint32_t SPI_data);
 static uint32_t form_acc(float acceleration,bool axis);
-static void Accelerometer_reset(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -143,7 +147,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
   if(hspi == &hspi3)
   {
 		float *acceleration_X_ptr,*acceleration_Y_ptr;
-		if(UARTRXcmd[0]==0x05)
+		if(UARTRXcmd[0]==0x03)
 		{
 			acceleration_X_ptr=XGE_X;
 			acceleration_Y_ptr=XGE_Y;//e
@@ -178,52 +182,170 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 }
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
-	uint8_t RxData[8]={0,};
+	uint8_t CANRxData[8]={0,};
+	static CanFrame ReceivedFrame;
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET)
   {
 		//implementation for the first test which measures the launching time
 		//measures and transmits the time between reception of the UART command to launch test
 		//and first received CAN message
-		if(UARTRXcmd[0]==0x01)
-      {
-				 uint8_t result1[4];
+		if(Input.testNumber==0x01)
+			{  
+				 uint8_t measuredvalue[4];
 			   UARTRXcmd[0]=0x00;
-         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK)
+         UARTRXcmd[1]=0;				
+         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
            {
              timelist[0]=time;
-						 result1[0]=timelist[0]>>24;				
-						 result1[1]=timelist[0]>>16;		
-						 result1[2]=timelist[0]>>8;			
-             result1[3]=timelist[0];             					 
+						 measuredvalue[0]=timelist[0]>>24;				
+						 measuredvalue[1]=timelist[0]>>16;		
+						 measuredvalue[2]=timelist[0]>>8;			
+             measuredvalue[3]=timelist[0];             					 
            }
-         HAL_UART_Transmit(&huart4,result1,4,0);					 
+				ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+        ReceivedFrame.id=RxHeader.Identifier;				
+				ReceivedFrame.length=(RxHeader.DataLength)>>16;
+			//	for(uint8_t i;i<Received.length;i++){Received.data[i]=RxData[i];}				
+				Output.method=Method_GET;
+			  Output.testNumber=1;
+				//Output.timeout=1000;
+				Output.has_accDataNumber=0;
+			  Output.measuredValue[0]=timelist[0];
+			  Output.frame[0]=ReceivedFrame;       
+        //формируем UART посылку
+				uint8_t Result[22];
+        Result[0]=Output.method;
+        Result[1]=Output.testNumber;
+				Result[2]=Output.has_accDataNumber;
+        Result[3]=Output.frame[0].timestamp>>24;	
+        Result[4]=Output.frame[0].timestamp>>16;
+        Result[5]=Output.frame[0].timestamp>>8;
+        Result[6]=Output.frame[0].timestamp;
+        Result[7]=Output.frame[0].id>>8;
+        Result[8]=Output.frame[0].id;
+        Result[9]=Output.frame[0].length;
+        for(uint8_t i=0;i<ReceivedFrame.length;i++){Result[i+10]=CANRxData[i];}
+        for(uint8_t i=0;i<sizeof(measuredvalue);i++){Result[i+18]=measuredvalue[i];}						
+        HAL_UART_Transmit(&huart4,Result,sizeof(Result),1000);	
+        FDCAN1->ILE ^= FDCAN_ILE_EINT0;				
 	    }
 		/*There is the implementation of a second test, which measures the period of 0x653 CAN message.
 		  Those message is being received 50 times, time interval between two consequent messages is being measured every time
 			then the average period is being calculated and transmitted via UART*/
-	  else if(UARTRXcmd[0]==0x02)
+	  else if(Input.testNumber==0x02)
       {
-				uint8_t result2[4];
-				uint32_t average;
+				uint8_t period[4];
+				//uint32_t average;
 				static uint8_t RXcounter=0;
-			  if(RXcounter==49)
-				{ 
-					 UARTRXcmd[0]=0x00;
-					 average=buffer_average_value(timelist,50);
-					 result2[0]=average>>24;				
-					 result2[1]=average>>16;		
-					 result2[2]=average>>8;			
-           result2[3]=average;
-					 HAL_UART_Transmit(&huart4,result2,4,10);	
-				}			
-		     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK)
+		     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
            {
              timelist[RXcounter]=time;
 				     RXcounter++; 
              time=0;    				 
            }
+				 if(RXcounter==50)
+				   { 
+					   UARTRXcmd[0]=0x00;
+					   timelist[0]=timelist[5]; //костыль
+					   average=buffer_average_value(timelist,50);
+					   period[0]=average>>24;				
+					   period[1]=average>>16;		
+					   period[2]=average>>8;			
+             period[3]=average;
+					
+				     ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+             ReceivedFrame.id=RxHeader.Identifier;				
+				     ReceivedFrame.length=(RxHeader.DataLength)>>16;
+					
+					   Output.method=Method_GET;					
+					   Output.testNumber=2;
+					   Output.has_accDataNumber=0;
+					   Output.measuredValue[0]=average;		
+             Output.frame[0]=ReceivedFrame;
+					
+					   uint8_t Result[22];
+             Result[0]=Output.method;
+             Result[1]=Output.testNumber;
+				     Result[2]=Output.has_accDataNumber;
+             Result[3]=Output.frame[0].timestamp>>24;	
+             Result[4]=Output.frame[0].timestamp>>16;
+             Result[5]=Output.frame[0].timestamp>>8;
+             Result[6]=Output.frame[0].timestamp;
+             Result[7]=Output.frame[0].id>>8;
+             Result[8]=Output.frame[0].id;
+             Result[9]=Output.frame[0].length;
+             for(uint8_t i=0;i<ReceivedFrame.length;i++){Result[i+10]=CANRxData[i];}
+             for(uint8_t i=0;i<sizeof(period);i++){Result[i+18]=period[i];}	
+					   HAL_UART_Transmit(&huart4,Result,sizeof(Result),1000);	
+					   FDCAN1->ILE ^= FDCAN_ILE_EINT0;		//disable fdcan interrupt		 
+				   }				
 	    }
-		else __NOP();	    
+		/*The implemenation for tests which uses accelerometer;
+			Period of 0x023 frame is being measured and state of 
+			CrashDetected signal from 0x653 frame is being tracked*/
+    else if(Input.testNumber==0x03||Input.testNumber==0x04)
+		  {
+			 uint8_t period[4];
+			 uint8_t CRASH_DETECTED_BEFORE_COLLISION;
+			 uint8_t CRASH_DETECTED_AFTER_COLLISION;
+				//uint32_t average;
+				static uint8_t RXcounter=0;
+		     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK && RxHeader.Identifier==0x023)
+           {
+             timelist[RXcounter]=time;
+				     RXcounter++; 
+             time=0;    				 
+           }
+				 if(RxHeader.Identifier==0x653&& timeX==-50)
+					CRASH_DETECTED_BEFORE_COLLISION=CANRxData[7];
+				 
+				 if(RxHeader.Identifier==0x653&& SPI_STOP_FLAG==true)
+					CRASH_DETECTED_AFTER_COLLISION=CANRxData[7];
+				 				 
+				 if(RXcounter==50)
+				   { 
+					   UARTRXcmd[0]=0x00;
+					   timelist[0]=timelist[5]; //костыль
+					   average=buffer_average_value(timelist,50);
+					   period[0]=average>>24;				
+					   period[1]=average>>16;		
+					   period[2]=average>>8;			
+             period[3]=average;
+					
+				     ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+             ReceivedFrame.id=RxHeader.Identifier;				
+				     ReceivedFrame.length=(RxHeader.DataLength)>>16;
+					
+					   Output.method=Method_GET;					
+					   Output.testNumber=2;
+					   Output.has_accDataNumber=0;
+					   Output.measuredValue[0]=average;		
+             Output.frame[0]=ReceivedFrame;
+					
+					   uint8_t Result[22];
+             Result[0]=Output.method;
+             Result[1]=Output.testNumber;
+				     Result[2]=Output.has_accDataNumber;
+             Result[3]=Output.frame[0].timestamp>>24;	
+             Result[4]=Output.frame[0].timestamp>>16;
+             Result[5]=Output.frame[0].timestamp>>8;
+             Result[6]=Output.frame[0].timestamp;
+             Result[7]=Output.frame[0].id>>8;
+             Result[8]=Output.frame[0].id;
+             Result[9]=Output.frame[0].length;
+						 Result[10]=CRASH_DETECTED_BEFORE_COLLISION;
+						 Result[11]=CRASH_DETECTED_AFTER_COLLISION;
+						 Result[13]=TTF>>24;
+						 Result[14]=TTF>>16;
+						 Result[15]=TTF>>8;
+						 Result[16]=TTF;
+             for(uint8_t i=0;i<ReceivedFrame.length;i++){Result[i+17]=CANRxData[i];}
+             for(uint8_t i=0;i<sizeof(period);i++){Result[i+17+ReceivedFrame.length]=period[i];}	
+					   HAL_UART_Transmit(&huart4,Result,sizeof(Result),1000);	
+					   FDCAN1->ILE ^= FDCAN_ILE_EINT0;
+           }			    
+      }
+    else __NOP();
   }
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -234,8 +356,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
 		SPI_STOP_FLAG=true;
 		HAL_GPIO_WritePin(RED_LED_GPIO_Port,RED_LED_Pin,GPIO_PIN_SET);
-		//TTF=time;
-		//HAL_UART_Transmit
+		TTF=time;
+		
 	}
 }
 
@@ -449,7 +571,8 @@ static void MX_FDCAN1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN FDCAN1_Init 2 */
-
+ HAL_FDCAN_ConfigTimestampCounter(&hfdcan1,1);
+ FDCAN1->TSCC |=0x01;//internal clock source for timestamp
   /* USER CODE END FDCAN1_Init 2 */
 
 }
@@ -560,7 +683,6 @@ static void MX_SPI3_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI3_Init 2 */
-
   /* USER CODE END SPI3_Init 2 */
 
 }
@@ -584,9 +706,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 119;
+  htim1.Init.Prescaler = 239;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 100;
+  htim1.Init.Period = 9;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -773,21 +895,21 @@ static uint32_t form_acc(float acceleration,bool axis)
 	formed_acceleration=(((uint32_t)B0)<<24)|(((uint32_t)B1)<<16)|(((uint32_t)B2)<<8)|((uint32_t)B3);
 	return formed_acceleration;
 }
+
 static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate, uint8_t size)
 {
-	uint8_t counter;
-	uint64_t sum;
+	static uint32_t sum;
 	uint32_t average;
-  for(counter=0;counter<size;counter++)
+  for(uint8_t counter=0;counter<size;counter++)
 	{
 		sum+=buffer_to_evaluate[counter];
 	}
-	average=sum/counter;
+	average=sum/size;
 	return average;	
 }
 static void FDCAN1_Config(void)
 {
- // FDCAN_FilterTypeDef Filter1;
+//   FDCAN_FilterTypeDef Filter1;
 
    /* Configure Rx filter*/ 
   /*Filter1.IdType = FDCAN_STANDARD_ID;
@@ -800,7 +922,6 @@ static void FDCAN1_Config(void)
   {
     Error_Handler();
   }*/
-
   // Configure global filter:
   if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK)
   {
@@ -828,141 +949,9 @@ static void FDCAN1_Config(void)
   TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   TxHeader.MessageMarker = 0;
+	//disable fdcan line 0 interrupt
+	FDCAN1->ILE ^= FDCAN_ILE_EINT0; //disable fdcan line 0 interrupt
 }
-
-static void Accelerometer_reset(void)
-{
-   	SPI_STOP_FLAG=false;
-	  UARTRXcmd[0]=0;
-		ctr0=0;
-		timeX=-100.5;
-		ctr2=0;
-		timeY=-100.5;
-}
-void vApplicationIdleHook( void )
-{
-  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_0,GPIO_PIN_SET);//green
-	HAL_UART_Receive(&huart4,UARTRXcmd,2,1000);
-	
-	switch(UARTRXcmd[0])
-{
-		case 0x01:
-	{
-		HAL_GPIO_WritePin(GPIOB,GPIO_PIN_0,GPIO_PIN_RESET);
-		vTaskResume(Init_testHandle);
-		xTaskNotifyGive(Init_testHandle);
-	}
-	  case 0x02:
-  {
-
-		HAL_GPIO_WritePin(GPIOB,GPIO_PIN_0,GPIO_PIN_RESET);
-		vTaskResume(CAN_periodHandle);
-		xTaskNotifyGive(CAN_periodHandle);
-	}
-		case 0x05:
-  {
-		HAL_GPIO_WritePin(GPIOB,GPIO_PIN_0,GPIO_PIN_RESET);
-		vTaskResume(Accelerometer_runHandle);
-		xTaskNotifyGive(Accelerometer_runHandle);
-	}
-		case 0x04:
-  {
-
-		HAL_GPIO_WritePin(GPIOB,GPIO_PIN_0,GPIO_PIN_RESET);
-		vTaskResume(Accelerometer_runHandle);
-		xTaskNotifyGive(Accelerometer_runHandle);
-	}
-		default: __NOP();
-}	
-}
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_Init_test_run */
-/**
-  * @brief  Function implementing the Init_test thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_Init_test_run */
-void Init_test_run(void *argument)
-{
-  /* USER CODE BEGIN 5 */
-	/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
-  /* Infinite loop */
-  for(;;)
-  {
-		ulTaskNotifyTake(0,portMAX_DELAY);
-		time=0;
-		//HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TxHeader,testbuf);
-    vTaskSuspend(Init_testHandle);		
-  }
-  /* USER CODE END 5 */
-}
-
-/* USER CODE BEGIN Header_CAN_2_RUN */
-/**
-* @brief Function implementing the CAN_2 thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_CAN_2_RUN */
-void CAN_2_RUN(void *argument)
-{
-  /* USER CODE BEGIN CAN_2_RUN */
-	/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
-  /* Infinite loop */
-  for(;;)
-  {
-		ulTaskNotifyTake(0,portMAX_DELAY);
-    //osDelay(100);
-		vTaskSuspend(CAN_periodHandle);
-
-  }
-  /* USER CODE END CAN_2_RUN */
-}
-
-/* USER CODE BEGIN Header_Accelerometer1_RUN */
-/**
-* @brief Function implementing the Accelerometer_trig thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_Accelerometer1_RUN */
-void Accelerometer1_RUN(void *argument)
-{
-  /* USER CODE BEGIN Accelerometer1_RUN */
-	/*Runs the accelerometer emualator, set of accelerations is depended on byte received via UART
-	Frame forming is given in HAL_SPI_TxRxCpltCallback*/
-	ulTaskNotifyTake(0,portMAX_DELAY);
-  /* Infinite loop */
-  for(;;)
-  {
-    while(timeX<0)
-		{		
-		HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
-    HAL_Delay(25);//Must be removed
-		}
-		HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
-		time = 0;
-		while(timeX<300&&SPI_STOP_FLAG==false)
-		{
-			HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
-      HAL_Delay(25);//Must be removed
-		}
-		Accelerometer_reset();
-		vTaskSuspend(Accelerometer_runHandle);
-  }
-  /* USER CODE END Accelerometer1_RUN */
-}
-
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM13 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
