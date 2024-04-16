@@ -51,9 +51,10 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
-extern void Accelerometer_reset(void);
-/* USER CODE BEGIN EFP */
 
+/* USER CODE BEGIN EFP */
+static void FDCAN_DISABLE_INTERRUPTS(void);
+static void FDCAN_ENABLE_INTERRUPTS(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

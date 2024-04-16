@@ -1,3 +1,4 @@
+
 #include "main.h"
 #include "cmsis_os.h"
 #include "FREERTOS_tasks.h"
@@ -8,7 +9,7 @@ extern RTC_HandleTypeDef hrtc;
 extern SPI_HandleTypeDef hspi3;
 extern TIM_HandleTypeDef htim1;
 extern UART_HandleTypeDef huart4;
-extern FDCAN_TxHeaderTypeDef TxHeader;
+extern FDCAN_TxHeaderTypeDef BCM_CANHS_R_04;
 extern FDCAN_RxHeaderTypeDef RxHeader;
 extern volatile uint32_t time;
 extern uint8_t UARTRXcmd[4];
@@ -29,16 +30,17 @@ extern uint8_t RCOMMAND0x02;
 extern uint32_t ctr2;
 extern uint32_t ctr0;
 extern volatile bool SPI_STOP_FLAG;
-TestData Output, Input;
+TestData Output, Input,Debug;
 
 extern RTC_TimeTypeDef sTime;
 extern RTC_DateTypeDef sDate;
+
 
 extern osThreadId_t Init_testHandle;
 extern osThreadId_t CAN_periodHandle;
 extern osThreadId_t Accelerometer_runHandle;
 
-static void Accelerometer_reset(void);
+
 static void Accelerometer_reset(void)
 {
    	SPI_STOP_FLAG=false;
@@ -48,13 +50,18 @@ static void Accelerometer_reset(void)
 		ctr2=0;
 		timeY=-100.5;
 }
-
+static void FDCAN_ENABLE_INTERRUPTS(void)
+{
+	FDCAN1->ILE |= FDCAN_ILE_EINT0; //enable fdcan line 0 interrupt
+}
 void vApplicationIdleHook( void )
 {
   HAL_GPIO_WritePin(GPIOB,GPIO_PIN_0,GPIO_PIN_SET);//green
 	HAL_UART_Receive(&huart4,UARTRXcmd,sizeof(UARTRXcmd),3000);
   Input.method=UARTRXcmd[0];
 	Input.testNumber=UARTRXcmd[1];
+	Input.has_accDataNumber=UARTRXcmd[2];
+	Input.accDataNumber=UARTRXcmd[3];
 	if(Input.method==0x01)//SET
 	  {
 	  if(Input.testNumber == 0x01)
@@ -85,15 +92,12 @@ void vApplicationIdleHook( void )
 
 void Init_test_run(void *argument)
 {
-	uint32_t ulNotifiedValue;
 	/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
   for(;;)
   {
-		ulNotifiedValue = ulTaskNotifyTake( pdFALSE,portMAX_DELAY );
-		FDCAN1->ILE |= FDCAN_ILE_EINT0;//ENABLE FDCAN INTERRUPT LINE0
+		ulTaskNotifyTake( pdFALSE,portMAX_DELAY );
+		FDCAN_ENABLE_INTERRUPTS();//ENABLE FDCAN INTERRUPT LINE0
 		time=0;
-		//HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TxHeader,testbuf);
-		//UARTRXcmd[0]=0;
     xTaskNotifyStateClear(Init_testHandle);		
   }
  
@@ -101,16 +105,13 @@ void Init_test_run(void *argument)
 
 void CAN_2_RUN(void *argument)
 {
-	 uint32_t ulNotifiedValue;
 	/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
   /* Infinite loop */
   for(;;)
   {
-		ulNotifiedValue=ulTaskNotifyTake(0,portMAX_DELAY);
-		FDCAN1->ILE |= FDCAN_ILE_EINT0; //ENABLE FDCAN INTERRUPT LINE0
-		//time=0;
+		ulTaskNotifyTake(0,portMAX_DELAY);
+		FDCAN_ENABLE_INTERRUPTS();
     for(uint16_t j=0;j<0xFFFF;j++){__NOP();}
-		//UARTRXcmd[0]=0;
 		xTaskNotifyStateClear(CAN_periodHandle);
   }
 }
@@ -123,12 +124,11 @@ void Accelerometer1_RUN(void *argument)
 	Frame forming is given in HAL_SPI_TxRxCpltCallback
 	Period of AirbagCrashOrder signal is being measured in HAL_FDCAN_RxFifo0Callback*/
 	
-	uint32_t ulNotifiedValue;
   /* Infinite loop */
   for(;;)
   {
-		ulNotifiedValue=ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
-		FDCAN1->ILE |= FDCAN_ILE_EINT0; //ENABLE FDCAN INTERRUPT LINE0
+		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
+		FDCAN_ENABLE_INTERRUPTS();
     while(timeX<0)
 		{		
 		HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
@@ -146,3 +146,4 @@ void Accelerometer1_RUN(void *argument)
   }
   /* USER CODE END Accelerometer1_RUN */
 }
+
