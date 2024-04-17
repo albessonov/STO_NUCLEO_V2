@@ -53,11 +53,17 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-static void FDCAN_DISABLE_INTERRUPTS(void);
-static void FDCAN_ENABLE_INTERRUPTS(void);
+void FDCAN_DISABLE_INTERRUPTS(void);
+void FDCAN_ENABLE_INTERRUPTS(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define SB_FP_CTRL_Pin GPIO_PIN_4
+#define SB_FP_CTRL_GPIO_Port GPIOF
+#define SB_DR_CTRL_Pin GPIO_PIN_5
+#define SB_DR_CTRL_GPIO_Port GPIOF
+#define SB_BP2_CTRL_Pin GPIO_PIN_6
+#define SB_BP2_CTRL_GPIO_Port GPIOF
 #define CAN_LED_Pin GPIO_PIN_5
 #define CAN_LED_GPIO_Port GPIOA
 #define GREEN_LED_Pin GPIO_PIN_0
@@ -66,6 +72,8 @@ static void FDCAN_ENABLE_INTERRUPTS(void);
 #define RED_LED_GPIO_Port GPIOB
 #define POWER_GOOD_Pin GPIO_PIN_15
 #define POWER_GOOD_GPIO_Port GPIOB
+#define SB_BP1_CTRL_Pin GPIO_PIN_6
+#define SB_BP1_CTRL_GPIO_Port GPIOG
 #define CH4_Pin GPIO_PIN_0
 #define CH4_GPIO_Port GPIOD
 #define CH2_Pin GPIO_PIN_1

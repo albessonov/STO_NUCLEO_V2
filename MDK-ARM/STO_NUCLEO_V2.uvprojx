@@ -415,6 +415,16 @@
               <FilePath>..\Core\Src\STO_tests_V2_nanopb.pb.c</FilePath>
             </File>
             <File>
+              <FileName>FREERTOS_tasks.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\FREERTOS_tasks.h</FilePath>
+            </File>
+            <File>
+              <FileName>FREERTOS_tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\FREERTOS_tasks.c</FilePath>
+            </File>
+            <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/main.c</FilePath>
@@ -438,16 +448,6 @@
               <FileName>stm32h7xx_hal_timebase_tim.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32h7xx_hal_timebase_tim.c</FilePath>
-            </File>
-            <File>
-              <FileName>FREERTOS_tasks.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Core\Inc\FREERTOS_tasks.h</FilePath>
-            </File>
-            <File>
-              <FileName>FREERTOS_tasks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\FREERTOS_tasks.c</FilePath>
             </File>
           </Files>
         </Group>

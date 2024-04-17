@@ -72,7 +72,7 @@ UART_HandleTypeDef huart4;
 osThreadId_t Init_testHandle;
 const osThreadAttr_t Init_test_attributes = {
   .name = "Init_test",
-  .stack_size = 4096 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for CAN_period */
@@ -89,12 +89,24 @@ const osThreadAttr_t Accelerometer_run_attributes = {
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-
+osThreadId_t Send_periodicHandle;
+const osThreadAttr_t Send_periodic_attributes = {
+  .name = "Send_periodic",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t SBR1Handle;
+const osThreadAttr_t SBR1_attributes = {
+  .name = "Send_periodic",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
-FDCAN_TxHeaderTypeDef BCM_CANHS_R_04;
+FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01;
 FDCAN_RxHeaderTypeDef RxHeader;
+
 volatile uint32_t time;
-uint8_t UARTRXcmd[4]={0,0,};
+uint8_t UARTRXcmd[10]={0,0,};
 uint32_t timelist[50]={0,};
 
 uint8_t SPI_RXbuf[4]={0,0,0,0};
@@ -115,8 +127,8 @@ volatile bool SPI_STOP_FLAG=false;
 
 extern TestData Output, Input,Debug;
 
-uint32_t average; //buffer_average_value
-static uint8_t Result[256];
+
+uint8_t Result[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -130,15 +142,13 @@ static void MX_RTC_Init(void);
 void Init_test_run(void *argument);
 void CAN_2_RUN(void *argument);
 void Accelerometer1_RUN(void *argument);
-void SBR1_RUN(void *argument);
 
 /* USER CODE BEGIN PFP */
 static void FDCAN1_Config(void);
 static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate,uint8_t size);
 static uint8_t CRC8(uint32_t SPI_data);
 static uint32_t form_acc(float acceleration,bool axis);
-/*static void FDCAN_DISABLE_INTERRUPTS(void);
- static void FDCAN_ENABLE_INTERRUPTS(void);*/
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -186,6 +196,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	uint8_t CANRxData[8]={0,};
 	static CanFrame ReceivedFrame;
 	size_t message_length;
+	uint32_t measured_period;
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET)
   {
 		//implementation for the first test which measures the launching time
@@ -226,7 +237,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	  else if(Input.testNumber==0x02)
       {
 				//uint32_t average;
-				uint8_t RXcounter=0;
+				static uint8_t RXcounter=0;
 		     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK &&RxHeader.Identifier==0x653)
            {
              timelist[RXcounter]=time*2;
@@ -276,7 +287,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 				 if(RXcounter==50)
 				   { 
 					   timelist[0]=timelist[5]; //костыль
-					   average=buffer_average_value(timelist,50);
+					   measured_period=buffer_average_value(timelist,50);
 
 					
 				     ReceivedFrame.timestamp=RxHeader.RxTimestamp;
@@ -288,7 +299,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 					   Output.method=Method_GET;					
 					   Output.testNumber=2;
 					   Output.has_accDataNumber=0;
-					   Output.measuredValue[0]=average;
+					   Output.measuredValue[0]=measured_period;
              Output.measuredValue_count++;						 
              Output.frame[4]=ReceivedFrame;
 						 Output.frame_count++;
@@ -322,7 +333,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 				       { 
 					       UARTRXcmd[0]=0x00;
 					       timelist[0]=timelist[5]; //костыль
-					       average=buffer_average_value(timelist,50);
+					       measured_period=buffer_average_value(timelist,50);
 					      
 				         ReceivedFrame.timestamp=RxHeader.RxTimestamp;
                  ReceivedFrame.id=RxHeader.Identifier;				
@@ -333,7 +344,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 					       Output.method=Method_GET;					
 					       Output.testNumber=2;
 					       Output.has_accDataNumber=0;
-					       Output.measuredValue[1]=average;
+					       Output.measuredValue[1]=measured_period;
                  Output.measuredValue_count++;								 
                  Output.frame[2]=ReceivedFrame;
                  Output.frame_count++;								 
@@ -395,10 +406,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* USER CODE END 0 */
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -462,6 +470,8 @@ int main(void)
   /* creation of Accelerometer_run */
   Accelerometer_runHandle = osThreadNew(Accelerometer1_RUN, NULL, &Accelerometer_run_attributes);
 	
+	Send_periodicHandle = osThreadNew(Send_periodic_start, NULL, &Send_periodic_attributes);
+	SBR1Handle = osThreadNew(SBR1_RUN, NULL, &SBR1_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -486,21 +496,16 @@ int main(void)
   /* USER CODE END 3 */
 }
 
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Supply configuration update enable
-  */
+
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
 
-  /** Configure the main internal regulator output voltage
-  */
+ 
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
@@ -510,14 +515,11 @@ void SystemClock_Config(void)
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
-  /** Configure LSE Drive Capability
-  */
+ 
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+  
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
@@ -556,11 +558,7 @@ void SystemClock_Config(void)
   }
 }
 
-/**
-  * @brief FDCAN1 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_FDCAN1_Init(void)
 {
 
@@ -610,11 +608,7 @@ static void MX_FDCAN1_Init(void)
 
 }
 
-/**
-  * @brief RTC Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_RTC_Init(void)
 {
 
@@ -674,11 +668,7 @@ static void MX_RTC_Init(void)
 
 }
 
-/**
-  * @brief SPI3 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_SPI3_Init(void)
 {
 
@@ -720,11 +710,7 @@ static void MX_SPI3_Init(void)
 
 }
 
-/**
-  * @brief TIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_TIM1_Init(void)
 {
 
@@ -767,11 +753,7 @@ static void MX_TIM1_Init(void)
 
 }
 
-/**
-  * @brief UART4 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_UART4_Init(void)
 {
 
@@ -815,11 +797,7 @@ static void MX_UART4_Init(void)
 
 }
 
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -828,10 +806,15 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOF, SB_FP_CTRL_Pin|SB_DR_CTRL_Pin|SB_BP2_CTRL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CAN_LED_GPIO_Port, CAN_LED_Pin, GPIO_PIN_RESET);
@@ -840,7 +823,17 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOB, GREEN_LED_Pin|RED_LED_Pin|POWER_GOOD_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SB_BP1_CTRL_GPIO_Port, SB_BP1_CTRL_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : SB_FP_CTRL_Pin SB_DR_CTRL_Pin SB_BP2_CTRL_Pin */
+  GPIO_InitStruct.Pin = SB_FP_CTRL_Pin|SB_DR_CTRL_Pin|SB_BP2_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CAN_LED_Pin */
   GPIO_InitStruct.Pin = CAN_LED_Pin;
@@ -855,6 +848,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SB_BP1_CTRL_Pin */
+  GPIO_InitStruct.Pin = SB_BP1_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SB_BP1_CTRL_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : CH4_Pin CH2_Pin */
   GPIO_InitStruct.Pin = CH4_Pin|CH2_Pin;
@@ -878,14 +878,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-static void FDCAN_DISABLE_INTERRUPTS(void)
+void FDCAN_DISABLE_INTERRUPTS(void)
 {
 	FDCAN1->ILE ^= FDCAN_ILE_EINT0; //disable fdcan line 0 interrupt
 }
-/*static void FDCAN_ENABLE_INTERRUPTS(void)
+void FDCAN_ENABLE_INTERRUPTS(void)
 {
 	FDCAN1->ILE |= FDCAN_ILE_EINT0; //enable fdcan line 0 interrupt
-}*/
+}
 static uint8_t CRC8(uint32_t SPI_data)
 {
 	uint64_t mask = MAX_UINT64_T - MAX_CRC;
@@ -980,7 +980,7 @@ static void FDCAN1_Config(void)
     Error_Handler();
   }
 
-   //Prepare Tx Header 
+  /*Prepare BCM_CANHS_R_04 Tx Header*/ 
   BCM_CANHS_R_04.Identifier = 0x350;
   BCM_CANHS_R_04.IdType = FDCAN_STANDARD_ID;
   BCM_CANHS_R_04.TxFrameType = FDCAN_DATA_FRAME;
@@ -990,9 +990,26 @@ static void FDCAN1_Config(void)
   BCM_CANHS_R_04.FDFormat = FDCAN_CLASSIC_CAN;
   BCM_CANHS_R_04.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   BCM_CANHS_R_04.MessageMarker = 0;
+	
+	/*Prepare BRAKE_CANHS_R_01 Tx Header*/
+	BRAKE_CANHS_R_01.Identifier = 0x242;
+  BRAKE_CANHS_R_01.IdType = FDCAN_STANDARD_ID;
+  BRAKE_CANHS_R_01.TxFrameType = FDCAN_DATA_FRAME;
+  BRAKE_CANHS_R_01.DataLength = FDCAN_DLC_BYTES_8;
+  BRAKE_CANHS_R_01.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  BRAKE_CANHS_R_01.BitRateSwitch = FDCAN_BRS_OFF;
+  BRAKE_CANHS_R_01.FDFormat = FDCAN_CLASSIC_CAN;
+  BRAKE_CANHS_R_01.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  BRAKE_CANHS_R_01.MessageMarker = 0;
 	//disable fdcan line 0 interrupt
 	FDCAN1->ILE ^= FDCAN_ILE_EINT0; //disable fdcan line 0 interrupt
 }
+
+
+/* USER CODE END 4 */
+
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
