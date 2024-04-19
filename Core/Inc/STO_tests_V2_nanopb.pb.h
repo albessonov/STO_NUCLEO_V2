@@ -15,6 +15,13 @@ typedef enum _Method {
     Method_GET = 1
 } Method;
 
+typedef enum _Position {
+    Driver = 1,
+    Front_passenger = 2,
+    Rear_passenger1 = 3,
+    Rear_passenger2 = 4
+} Position;
+
 /* Struct definitions */
 typedef struct _MCUSettings {
     Method method;
@@ -45,12 +52,14 @@ typedef struct _TestData {
     uint32_t timeout; /* номер таймаута теста, после которого мы ожидаем ответ с результатом */
     bool has_accDataNumber;
     uint32_t accDataNumber; /* Ќомер используемого набора ускорений (расписать, какой номер за какой набор отвечает) */
-    bool has_seatbelt_number;
-    uint32_t seatbelt_number; /* Ќомер тестируемого ремн€(1-водитель;2-передний пассажир;3,4-задние пассажиры) */
+    bool has_Seatbelt_position;
+    Position Seatbelt_position; /* Ќомер тестируемого ремн€(1-водитель;2-передний пассажир;3,4-задние пассажиры) */
     bool has_vehicle_speed;
     bool vehicle_speed; /* 0-отправл€ть скорость  15 км/ч;1-отправл€ть скорость 40 км/ч */
     bool has_VehicleStateExtended;
     bool VehicleStateExtended; /* ƒл€ тестов SBR: 0-Sleeping ; 1-EngineRunning */
+    bool has_Door_position;
+    Position Door_position; /* 1-¬одитель;2-передний пассажир;3,4-задние пассажиры */
     pb_size_t measuredValue_count;
     double measuredValue[10];
     pb_size_t frame_count;
@@ -75,21 +84,27 @@ extern "C" {
 #define _Method_MAX Method_GET
 #define _Method_ARRAYSIZE ((Method)(Method_GET+1))
 
+#define _Position_MIN Driver
+#define _Position_MAX Rear_passenger2
+#define _Position_ARRAYSIZE ((Position)(Rear_passenger2+1))
+
 
 #define MCUSettings_method_ENUMTYPE Method
 
 #define TestData_method_ENUMTYPE Method
+#define TestData_Seatbelt_position_ENUMTYPE Position
+#define TestData_Door_position_ENUMTYPE Position
 
 
 
 /* Initializer values for message structs */
 #define Message_init_default                     {0, {TestData_init_default}}
 #define MCUSettings_init_default                 {_Method_MIN, false, "", false, 0, false, 0, false, 0}
-#define TestData_init_default                    {_Method_MIN, 0, false, 0, false, 0, false, 0, false, 0, false, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default}}
+#define TestData_init_default                    {_Method_MIN, 0, false, 0, false, 0, false, _Position_MIN, false, 0, false, 0, false, _Position_MIN, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default}}
 #define CanFrame_init_default                    {0, 0, 0, {0, {0}}}
 #define Message_init_zero                        {0, {TestData_init_zero}}
 #define MCUSettings_init_zero                    {_Method_MIN, false, "", false, 0, false, 0, false, 0}
-#define TestData_init_zero                       {_Method_MIN, 0, false, 0, false, 0, false, 0, false, 0, false, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero}}
+#define TestData_init_zero                       {_Method_MIN, 0, false, 0, false, 0, false, _Position_MIN, false, 0, false, 0, false, _Position_MIN, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero}}
 #define CanFrame_init_zero                       {0, 0, 0, {0, {0}}}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -106,11 +121,12 @@ extern "C" {
 #define TestData_testNumber_tag                  2
 #define TestData_timeout_tag                     3
 #define TestData_accDataNumber_tag               4
-#define TestData_seatbelt_number_tag             5
+#define TestData_Seatbelt_position_tag           5
 #define TestData_vehicle_speed_tag               6
 #define TestData_VehicleStateExtended_tag        7
-#define TestData_measuredValue_tag               8
-#define TestData_frame_tag                       9
+#define TestData_Door_position_tag               8
+#define TestData_measuredValue_tag               9
+#define TestData_frame_tag                       10
 #define Message_testData_tag                     1
 #define Message_mcuSettings_tag                  2
 
@@ -137,13 +153,14 @@ X(a, STATIC,   REQUIRED, UENUM,    method,            1) \
 X(a, STATIC,   REQUIRED, UINT32,   testNumber,        2) \
 X(a, STATIC,   OPTIONAL, UINT32,   timeout,           3) \
 X(a, STATIC,   OPTIONAL, UINT32,   accDataNumber,     4) \
-X(a, STATIC,   OPTIONAL, UINT32,   seatbelt_number,   5) \
+X(a, STATIC,   OPTIONAL, UENUM,    Seatbelt_position,   5) \
 X(a, STATIC,   OPTIONAL, BOOL,     vehicle_speed,     6) \
 X(a, STATIC,   OPTIONAL, BOOL,     VehicleStateExtended,   7) \
-X(a, STATIC,   REPEATED, DOUBLE,   measuredValue,     8) \
-X(a, STATIC,   REPEATED, MESSAGE,  frame,             9)
+X(a, STATIC,   OPTIONAL, UENUM,    Door_position,     8) \
+X(a, STATIC,   REPEATED, DOUBLE,   measuredValue,     9) \
+X(a, STATIC,   REPEATED, MESSAGE,  frame,            10)
 #define TestData_CALLBACK NULL
-#define TestData_DEFAULT NULL
+#define TestData_DEFAULT (const pb_byte_t*)"\x28\x01\x40\x01\x00"
 #define TestData_frame_MSGTYPE CanFrame
 
 #define CanFrame_FIELDLIST(X, a) \
@@ -168,11 +185,13 @@ extern const pb_msgdesc_t CanFrame_msg;
 /* Maximum encoded size of messages (where known) */
 #define CanFrame_size                            28
 #define MCUSettings_size                         34
-#define Message_size                             723
-#define TestData_size                            720
+#define Message_size                             721
+#define TestData_size                            718
 
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
 
 #endif
+
+

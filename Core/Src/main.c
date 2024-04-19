@@ -97,7 +97,37 @@ const osThreadAttr_t Send_periodic_attributes = {
 };
 osThreadId_t SBR1Handle;
 const osThreadAttr_t SBR1_attributes = {
-  .name = "Send_periodic",
+  .name = "SBR1",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t SBR2Handle;
+const osThreadAttr_t SBR2_attributes = {
+  .name = "SBR2",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t SBR3_4Handle;
+const osThreadAttr_t SBR3_4_attributes = {
+  .name = "SBR2",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t SBR5Handle;
+const osThreadAttr_t SBR5_attributes = {
+  .name = "SBR5",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t SBR6Handle;
+const osThreadAttr_t SBR6_attributes = {
+  .name = "SBR6",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t SBR7Handle;
+const osThreadAttr_t SBR7_attributes = {
+  .name = "SBR7",
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -106,7 +136,7 @@ FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 volatile uint32_t time;
-uint8_t UARTRXcmd[10]={0,0,};
+uint8_t UARTRXcmd[15]={0,};
 uint32_t timelist[50]={0,};
 
 uint8_t SPI_RXbuf[4]={0,0,0,0};
@@ -461,18 +491,26 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of Init_test */
   Init_testHandle = osThreadNew(Init_test_run, NULL, &Init_test_attributes);
 
-  /* creation of CAN_period */
   CAN_periodHandle = osThreadNew(CAN_2_RUN, NULL, &CAN_period_attributes);
 
-  /* creation of Accelerometer_run */
   Accelerometer_runHandle = osThreadNew(Accelerometer1_RUN, NULL, &Accelerometer_run_attributes);
 	
 	Send_periodicHandle = osThreadNew(Send_periodic_start, NULL, &Send_periodic_attributes);
+	
 	SBR1Handle = osThreadNew(SBR1_RUN, NULL, &SBR1_attributes);
-
+	
+	SBR2Handle = osThreadNew(SBR2_RUN, NULL, &SBR2_attributes);
+	
+	SBR3_4Handle = osThreadNew(SBR3_4_RUN, NULL, &SBR3_4_attributes);
+   
+	SBR5Handle = osThreadNew(SBR5_RUN, NULL, &SBR5_attributes);
+	
+	SBR6Handle = osThreadNew(SBR6_RUN, NULL, &SBR6_attributes);
+	
+	//SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
+	
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */

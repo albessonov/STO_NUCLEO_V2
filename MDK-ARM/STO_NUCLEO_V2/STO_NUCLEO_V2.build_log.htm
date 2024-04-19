@@ -28,13 +28,15 @@ Project File Date:  04/16/2024
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'STO_NUCLEO_V2'
 compiling FREERTOS_tasks.c...
-..\Core\Src\FREERTOS_tasks.c(48): warning:  #188-D: enumerated type mixed with another type
+..\Core\Src\FREERTOS_tasks.c(53): warning:  #188-D: enumerated type mixed with another type
     Input.method=UARTRXcmd[0];
-..\Core\Src\FREERTOS_tasks.c: 1 warning, 0 errors
+..\Core\Src\FREERTOS_tasks.c(58): warning:  #188-D: enumerated type mixed with another type
+  	Input.Seatbelt_position=UARTRXcmd[5];	
+..\Core\Src\FREERTOS_tasks.c: 2 warnings, 0 errors
 linking...
-Program Size: Code=41504 RO-data=1252 RW-data=13036 ZI-data=73532  
+Program Size: Code=43632 RO-data=1444 RW-data=13064 ZI-data=73536  
 FromELF: creating hex file...
-"STO_NUCLEO_V2\STO_NUCLEO_V2.axf" - 0 Error(s), 1 Warning(s).
+"STO_NUCLEO_V2\STO_NUCLEO_V2.axf" - 0 Error(s), 2 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -58,7 +60,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE:5.6.0
       Include file:  CMSIS\Core\Include\tz_context.h
-Build Time Elapsed:  00:00:04
+Build Time Elapsed:  00:00:03
 </pre>
 </body>
 </html>
