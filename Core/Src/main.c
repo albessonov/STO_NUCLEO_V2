@@ -509,7 +509,7 @@ int main(void)
 	
 	SBR6Handle = osThreadNew(SBR6_RUN, NULL, &SBR6_attributes);
 	
-	//SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
+	SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
 	
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */

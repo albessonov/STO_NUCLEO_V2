@@ -20,7 +20,8 @@ extern uint32_t ctr2;
 extern uint32_t ctr0;
 extern volatile bool SPI_STOP_FLAG;
 TestData Output, Input,Debug;
-bool SEND_DOORSTATE=false;
+volatile bool SEND_DOORSTATE=false;
+volatile bool SEND_PERIODIC=false;
 
 extern uint8_t Result[256];
 
@@ -56,11 +57,13 @@ void vApplicationIdleHook( void )
 	Input.accDataNumber=UARTRXcmd[3];
 	Input.has_Seatbelt_position=UARTRXcmd[4];
 	Input.Seatbelt_position=UARTRXcmd[5];	
-	Input.has_vehicle_speed=UARTRXcmd[7];
-	Input.vehicle_speed=UARTRXcmd[8];
-	Input.has_VehicleStateExtended=UARTRXcmd[9];
-	Input.VehicleStateExtended=UARTRXcmd[10];
-	if(Input.method==0x01)//SET
+	Input.has_vehicle_speed=UARTRXcmd[6];
+	Input.vehicle_speed=UARTRXcmd[7];
+	Input.has_VehicleStateExtended=UARTRXcmd[8];
+	Input.VehicleStateExtended=UARTRXcmd[9];
+	Input.has_Door_position=UARTRXcmd[10];
+	Input.Door_position=UARTRXcmd[11];
+	if(Input.method==Method_SET)//0
 	  {
 	  if(Input.testNumber == 0x01)
 	    {
@@ -178,10 +181,11 @@ void Send_periodic_start(void *argument)
 	uint8_t Vehicle_Speed_15kmh[8]={0x05,0xDC,0,0,0,0,0,0};
 	uint8_t Vehicle_Speed_40kmh[8]={0x0F,0xA0,0,0,0,0,0,0};
 	uint8_t *Speed,*VehicleState;
+	uint8_t Notification;
   /* Infinite loop */
   for(;;)
   {
-		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
+		Notification=ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 		if(Input.has_Door_position==true)
 			{
 		  if(Input.Door_position==Driver&&SEND_DOORSTATE==true)
@@ -221,14 +225,14 @@ void Send_periodic_start(void *argument)
 		  {
 				VehicleState=BCM_CANHS_R_04_data_ER;
 			}
-		while(1)
+		while(SEND_PERIODIC==true)
 		{
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BCM_CANHS_R_04,VehicleState);
 		if(Input.has_vehicle_speed==true)
 			{
 				HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_CANHS_R_01,Speed);
 		  }
-		HAL_Delay(100);
+		osDelay(100);
 		}
   }
 }
@@ -244,6 +248,7 @@ void SBR1_RUN(void *argument)
   {
 		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 		xTaskNotifyGive(Send_periodicHandle);
+		SEND_PERIODIC=true;
 			if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -297,10 +302,12 @@ void SBR1_RUN(void *argument)
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
 		FDCAN_DISABLE_INTERRUPTS();
     UARTRXcmd[0]=0;
-    UARTRXcmd[1]=0;		
+    UARTRXcmd[1]=0;
+    Input.testNumber=0;		
     	/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
     pb_decode(&streamrd, TestData_fields, &Debug);*/
+		SEND_PERIODIC=false;
 		xTaskNotifyStateClear(Send_periodicHandle);
 		xTaskNotifyStateClear(SBR1Handle);
   }
@@ -317,7 +324,7 @@ void SBR2_RUN(void *argument)
   {
 		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 		xTaskNotifyGive(Send_periodicHandle);
-			
+		SEND_PERIODIC=true;	
 		if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -338,7 +345,8 @@ void SBR2_RUN(void *argument)
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
 			}
-		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);		
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+    osDelay(1000);//?????			
 		HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
 		ReceivedFrame.timestamp=RxHeader.RxTimestamp;
     ReceivedFrame.id=RxHeader.Identifier;				
@@ -363,6 +371,7 @@ void SBR2_RUN(void *argument)
     pb_decode(&streamrd, TestData_fields, &Debug);*/
 		xTaskNotifyStateClear(Send_periodicHandle);
 		xTaskNotifyStateClear(SBR2Handle);
+		SEND_PERIODIC=false;
   }
 }
 void SBR3_4_RUN(void *argument)
@@ -377,7 +386,7 @@ uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
   {
 		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 		xTaskNotifyGive(Send_periodicHandle);
-			
+		SEND_PERIODIC=true;	
 		if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -424,6 +433,7 @@ uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
     pb_decode(&streamrd, TestData_fields, &Debug);*/
 		xTaskNotifyStateClear(Send_periodicHandle);
 		xTaskNotifyStateClear(SBR3_4Handle);
+		SEND_PERIODIC=false;
   }
 }
 void SBR5_RUN(void *argument)
@@ -438,7 +448,7 @@ void SBR5_RUN(void *argument)
   {
 		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 		xTaskNotifyGive(Send_periodicHandle);
-			
+		SEND_PERIODIC=true;	
 		if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -486,12 +496,14 @@ void SBR5_RUN(void *argument)
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
 		FDCAN_DISABLE_INTERRUPTS();
     UARTRXcmd[0]=0;
-    UARTRXcmd[1]=0;		
+    UARTRXcmd[1]=0;
+    Input.testNumber=0;		
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
     pb_decode(&streamrd, TestData_fields, &Debug);*/
 		xTaskNotifyStateClear(Send_periodicHandle);
 		xTaskNotifyStateClear(SBR5Handle);
+		SEND_PERIODIC=false;
   }
 }
 void SBR6_RUN(void *argument)
@@ -505,7 +517,9 @@ void SBR6_RUN(void *argument)
   for(;;)
   {
 		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
-		xTaskNotifyGive(Send_periodicHandle);			
+		xTaskNotifyGive(Send_periodicHandle);
+    SEND_PERIODIC=true;
+    Input.testNumber=0;			
 		if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -563,12 +577,14 @@ void SBR6_RUN(void *argument)
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
 		FDCAN_DISABLE_INTERRUPTS();
     UARTRXcmd[0]=0;
-    UARTRXcmd[1]=0;		
+    UARTRXcmd[1]=0;
+	
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
     pb_decode(&streamrd, TestData_fields, &Debug);*/
 		xTaskNotifyStateClear(Send_periodicHandle);
 		xTaskNotifyStateClear(SBR6Handle);
+		SEND_PERIODIC=false;
   }
 }
 void SBR7_RUN(void *argument)
@@ -582,7 +598,8 @@ void SBR7_RUN(void *argument)
   for(;;)
   {
 		ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
-		xTaskNotifyGive(Send_periodicHandle);			
+		xTaskNotifyGive(Send_periodicHandle);
+    SEND_PERIODIC=true;		
 		if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -629,6 +646,7 @@ void SBR7_RUN(void *argument)
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
     pb_decode(&streamrd, TestData_fields, &Debug);*/
 		xTaskNotifyStateClear(Send_periodicHandle);
+		SEND_PERIODIC=false;
 		xTaskNotifyStateClear(SBR1Handle);
   }
 }
