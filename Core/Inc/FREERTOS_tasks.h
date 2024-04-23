@@ -22,6 +22,7 @@ void SBR3_4_RUN(void *argument);
 void SBR5_RUN(void *argument);
 void SBR6_RUN(void *argument);
 void SBR7_RUN(void *argument);
+void EDR_Transmitter(void *argument);
 
 
 

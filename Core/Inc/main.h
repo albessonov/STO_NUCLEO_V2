@@ -55,6 +55,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 void FDCAN_DISABLE_INTERRUPTS(void);
 void FDCAN_ENABLE_INTERRUPTS(void);
+void CLEAR_OUTPUT(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

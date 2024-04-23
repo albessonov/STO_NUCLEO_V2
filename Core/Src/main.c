@@ -131,8 +131,15 @@ const osThreadAttr_t SBR7_attributes = {
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+
+osThreadId_t EDRHandle;
+const osThreadAttr_t EDR_attributes = {
+  .name = "EDR",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
-FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01;
+FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 volatile uint32_t time;
@@ -256,7 +263,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         pb_encode(&streamwrt, TestData_fields, &Output);
         message_length=streamwrt.bytes_written;
         HAL_UART_Transmit(&huart4,Result,message_length,1000);	 
-
+        CLEAR_OUTPUT();
         FDCAN_DISABLE_INTERRUPTS();
         UARTRXcmd[0]=0;
         UARTRXcmd[1]=0;						 
@@ -338,6 +345,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
              pb_encode(&streamwrt, TestData_fields, &Output);
              message_length=streamwrt.bytes_written;
              HAL_UART_Transmit(&huart4,Result,message_length,1000);
+						 CLEAR_OUTPUT();
 					   FDCAN_DISABLE_INTERRUPTS();
              UARTRXcmd[0]=0;
              UARTRXcmd[1]=0;
@@ -347,7 +355,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 		/*The implemenation for tests which uses accelerometer;
 			Period of 0x023 frame is being measured and state of 
 			CrashDetected signal from 0x653 frame is being tracked*/
-    else if(Input.testNumber==0x03||Input.testNumber==0x04)
+    else if(Input.testNumber==0x03)
 		  {  
 				 static uint8_t RXcounter=0;
          static bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
@@ -361,7 +369,6 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
                  time=0;    				 		 				 
 				       if(RXcounter==50)
 				       { 
-					       UARTRXcmd[0]=0x00;
 					       timelist[0]=timelist[5]; //костыль
 					       measured_period=buffer_average_value(timelist,50);
 					      
@@ -412,25 +419,15 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	size_t message_length;
 	/*Handles CH0 rising edge interrupt(when crash occurs)*/
 	if(GPIO_Pin==CH4_Pin || GPIO_Pin==CH2_Pin)//
-	{
+	{		
 		HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
 		SPI_STOP_FLAG=true;
 		TTF=time*2;
 		Output.measuredValue[0]=TTF;
 		Output.measuredValue_count++;
-		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-    HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
-		FDCAN_DISABLE_INTERRUPTS(); 
-		UARTRXcmd[0]=0;
-    UARTRXcmd[1]=0;
-		pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
-    pb_decode(&streamrd, TestData_fields, &Debug);
-		
+		FDCAN_DISABLE_INTERRUPTS(); 		
 	}
 }
 
@@ -510,6 +507,8 @@ int main(void)
 	SBR6Handle = osThreadNew(SBR6_RUN, NULL, &SBR6_attributes);
 	
 	SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
+	
+	EDRHandle = osThreadNew(EDR_Transmitter, NULL, &EDR_attributes);
 	
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -622,17 +621,17 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.DataTimeSeg1 = 1;
   hfdcan1.Init.DataTimeSeg2 = 1;
   hfdcan1.Init.MessageRAMOffset = 0;
-  hfdcan1.Init.StdFiltersNbr = 0;
+  hfdcan1.Init.StdFiltersNbr = 3;
   hfdcan1.Init.ExtFiltersNbr = 0;
-  hfdcan1.Init.RxFifo0ElmtsNbr = 50;
+  hfdcan1.Init.RxFifo0ElmtsNbr = 64;
   hfdcan1.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
-  hfdcan1.Init.RxFifo1ElmtsNbr = 0;
+  hfdcan1.Init.RxFifo1ElmtsNbr = 64;
   hfdcan1.Init.RxFifo1ElmtSize = FDCAN_DATA_BYTES_8;
   hfdcan1.Init.RxBuffersNbr = 0;
   hfdcan1.Init.RxBufferSize = FDCAN_DATA_BYTES_8;
   hfdcan1.Init.TxEventsNbr = 0;
   hfdcan1.Init.TxBuffersNbr = 1;
-  hfdcan1.Init.TxFifoQueueElmtsNbr = 20;
+  hfdcan1.Init.TxFifoQueueElmtsNbr = 32;
   hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
   if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
@@ -916,6 +915,11 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void CLEAR_OUTPUT(void)
+{
+	memset(Result,  0x00,   sizeof(Result));
+	memset(&Output, 0x00, sizeof(Output));
+}
 void FDCAN_DISABLE_INTERRUPTS(void)
 {
 	FDCAN1->ILE ^= FDCAN_ILE_EINT0; //disable fdcan line 0 interrupt
@@ -988,25 +992,21 @@ static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate, uint8_t size)
 }
 static void FDCAN1_Config(void)
 {
-//   FDCAN_FilterTypeDef Filter1;
-
-   /* Configure Rx filter*/ 
-  /*Filter1.IdType = FDCAN_STANDARD_ID;
-  Filter1.FilterIndex = 0;
-  Filter1.FilterType = FDCAN_FILTER_MASK;
-  Filter1.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-  Filter1.FilterID1 = 0x321;
-  Filter1.FilterID2 = 0x7FF;
-  if (HAL_FDCAN_ConfigFilter(&hfdcan1, &Filter1) != HAL_OK)
-  {
-    Error_Handler();
-  }*/
+	FDCAN_FilterTypeDef EDR_Filter;
+/* Configure FIFO1 Rx filter for EDR messages*/ 
+    EDR_Filter.IdType = FDCAN_STANDARD_ID;
+    EDR_Filter.FilterIndex = 0;
+    EDR_Filter.FilterType = FDCAN_FILTER_RANGE;
+    EDR_Filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO1;
+    EDR_Filter.FilterID1 = 0x771;
+    EDR_Filter.FilterID2 = 0x773;
+    HAL_FDCAN_ConfigFilter(&hfdcan1, &EDR_Filter);
   // Configure global filter:
-  if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK)
+  if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0,FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE) != HAL_OK)
   {
     Error_Handler();
   }
-
+ 
   // Start the FDCAN module 
   if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
   {
@@ -1039,8 +1039,19 @@ static void FDCAN1_Config(void)
   BRAKE_CANHS_R_01.FDFormat = FDCAN_CLASSIC_CAN;
   BRAKE_CANHS_R_01.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   BRAKE_CANHS_R_01.MessageMarker = 0;
+	
+	/*Prepare DTOOL_to_AIRBAG Tx Header*/
+	DTOOL_to_AIRBAG.Identifier = 0x752;
+  DTOOL_to_AIRBAG.IdType = FDCAN_STANDARD_ID;
+  DTOOL_to_AIRBAG.TxFrameType = FDCAN_DATA_FRAME;
+  DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;
+  DTOOL_to_AIRBAG.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  DTOOL_to_AIRBAG.BitRateSwitch = FDCAN_BRS_OFF;
+  DTOOL_to_AIRBAG.FDFormat = FDCAN_CLASSIC_CAN;
+  DTOOL_to_AIRBAG.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  DTOOL_to_AIRBAG.MessageMarker = 0;
 	//disable fdcan line 0 interrupt
-	FDCAN1->ILE ^= FDCAN_ILE_EINT0; //disable fdcan line 0 interrupt
+	FDCAN1->ILE ^= FDCAN_ILE_EINT0; 
 }
 
 
