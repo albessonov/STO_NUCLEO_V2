@@ -165,11 +165,15 @@ void Accelerometer1_RUN(void *argument)
 		}
 		HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
 		time = 0;
-		while(timeX<300&&SPI_STOP_FLAG==false)
+		while(timeX<290&&SPI_STOP_FLAG==false)
 		{
 			HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
       HAL_Delay(25);//Must be removed
 		}
+		Output.testNumber=Input.testNumber;
+		Input.testNumber=0;
+		Output.has_accDataNumber=Input.has_accDataNumber;
+		Output.accDataNumber=Input.accDataNumber;
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
