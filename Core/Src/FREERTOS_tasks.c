@@ -12,7 +12,7 @@ extern UART_HandleTypeDef huart4;
 extern FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG;
 extern FDCAN_RxHeaderTypeDef RxHeader;
 extern volatile uint32_t time;
-extern uint8_t UARTRXcmd[15];
+extern uint8_t UARTRXcmd[128];
 extern uint8_t SPI_RXbuf[4];
 extern uint8_t SPI_resp[4];
 extern volatile double timeX,timeY;
@@ -20,15 +20,18 @@ extern uint32_t ctr2;
 extern uint32_t ctr0;
 extern uint32_t TTF;
 extern volatile bool SPI_STOP_FLAG;
-TestData Output, Input,Debug;
+TestData Output=TestData_init_zero;
+TestData Input=TestData_init_zero;
+TestData Debug=TestData_init_zero;
 volatile bool SEND_DOORSTATE=false;
 volatile bool SEND_PERIODIC_MESSAGES=false;
 
 extern uint8_t Result[256];
-
+extern uint8_t len[1];
 
 extern osThreadId_t Init_testHandle;
 extern osThreadId_t CAN_periodHandle;
+extern osThreadId_t Accelerometer_periodHandle;
 extern osThreadId_t Accelerometer_runHandle;
 extern osThreadId_t Send_periodicHandle;
 extern osThreadId_t SBR1Handle;
@@ -39,19 +42,19 @@ extern osThreadId_t SBR6Handle;
 extern osThreadId_t SBR7Handle;
 extern osThreadId_t EDRHandle;
 
-static void Accelerometer_reset(void)
-{
-   	SPI_STOP_FLAG=false;
-		ctr0=0;
-		timeX=-100.5;
-		ctr2=0;
-		timeY=-100.5;
-}
 
 void vApplicationIdleHook( void )
 {
-	HAL_UART_Receive(&huart4,UARTRXcmd,sizeof(UARTRXcmd),3000);
-  Input.method=UARTRXcmd[0];
+	HAL_GPIO_WritePin(GPIOE,SB_BP3_CTRL_Pin,fastened);
+	HAL_UART_Receive(&huart4,UARTRXcmd,sizeof(UARTRXcmd),1000);
+	/*Filling in the structure using nanopb*/
+	if(UARTRXcmd[0]==0x08)
+		{
+	    pb_istream_t RXstream = pb_istream_from_buffer(UARTRXcmd, sizeof(UARTRXcmd));
+      pb_decode(&RXstream, TestData_fields, &Input);
+		}
+	/*Filling in the structure directly from buffer*/
+  /*Input.method=UARTRXcmd[0];
 	Input.testNumber=UARTRXcmd[1];
 	Input.has_accDataNumber=UARTRXcmd[2];
 	Input.accDataNumber=UARTRXcmd[3];
@@ -62,55 +65,60 @@ void vApplicationIdleHook( void )
 	Input.has_VehicleStateExtended=UARTRXcmd[8];
 	Input.VehicleStateExtended=UARTRXcmd[9];
 	Input.has_Door_position=UARTRXcmd[10];
-	Input.Door_position=UARTRXcmd[11];
+	Input.Door_position=UARTRXcmd[11];*/
 	if(Input.method==Method_SET)//0
 	  {
 	  if(Input.testNumber == 0x01)
 	    {
-		    UARTRXcmd[1]=0;
+		    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 		    xTaskNotifyGive(Init_testHandle);
 	    }
 	  else if(Input.testNumber ==  0x02)
       {
-		    UARTRXcmd[1]=0;
+		    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 		    xTaskNotifyGive(CAN_periodHandle);
 	    }
 		else if(Input.testNumber ==  0x03)
       {
-		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(Accelerometer_runHandle);
+		    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+		    xTaskNotifyGive(Accelerometer_periodHandle);
 	    }
 		else if(Input.testNumber ==  0x04)
       {
-		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR1Handle);			
+		    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+		    xTaskNotifyGive(Accelerometer_runHandle);
 	    }
 		else if(Input.testNumber ==  0x05)
       {
-		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR2Handle);			
+		    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+		    xTaskNotifyGive(SBR1Handle);			
 	    }
 		else if(Input.testNumber ==  0x06)
       {
 		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR3_4Handle);			
+		    xTaskNotifyGive(SBR2Handle);			
 	    }
 		else if(Input.testNumber ==  0x07)
       {
 		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR5Handle);			
+		    xTaskNotifyGive(SBR3_4Handle);			
 	    }
-     else if(Input.testNumber ==  0x08)
+		else if(Input.testNumber ==  0x08)
       {
 		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR6Handle);			
+		    xTaskNotifyGive(SBR5Handle);			
 	    }
      else if(Input.testNumber ==  0x09)
       {
 		    UARTRXcmd[1]=0;
+		    xTaskNotifyGive(SBR6Handle);			
+	    }
+     else if(Input.testNumber ==  0x0A)
+      {
+		    UARTRXcmd[1]=0;
 		    xTaskNotifyGive(SBR7Handle);					
 	    }
-     else if(Input.testNumber ==  0x0C)
+     else if(Input.testNumber ==  0x0B)
       {		    
 				UARTRXcmd[1]=0;
 		    xTaskNotifyGive(EDRHandle);					
@@ -127,6 +135,7 @@ void Init_test_run(void *argument)
   for(;;)
   {
 		ulTaskNotifyTake( pdTRUE,portMAX_DELAY );
+		FDCAN1->GFC |= (FDCAN_ACCEPT_IN_RX_FIFO0 << FDCAN_GFC_ANFS_Pos);
 		FDCAN_ENABLE_INTERRUPTS();//ENABLE FDCAN INTERRUPT LINE0
 		time=0;		
   }
@@ -141,10 +150,33 @@ void CAN_2_RUN(void *argument)
   {
 		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
 		FDCAN_ENABLE_INTERRUPTS();
-    for(uint16_t j=0;j<0xFFFF;j++){__NOP();}
+    for(uint16_t j=0;j<0xFFF;j++){__NOP();}
   }
 }
-
+void Accelerometer_period_RUN(void *argument)
+{
+  /* USER CODE BEGIN Accelerometer1_RUN */
+	/*Runs the accelerometer emualator, set of accelerations is hardcoded*/
+  /* Infinite loop */
+  for(;;)
+  {
+		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+		FDCAN_ENABLE_INTERRUPTS();
+    while(timeX<0)
+		{		
+		HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    HAL_Delay(25);//Must be removed
+		}
+		HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+		time = 0;
+		while(timeX<290&&SPI_STOP_FLAG==false)
+		{
+			HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+      HAL_Delay(25);//Must be removed
+		}
+  }
+  /* USER CODE END Accelerometer_period_RUN */
+}
 
 void Accelerometer1_RUN(void *argument)
 {
@@ -157,6 +189,8 @@ void Accelerometer1_RUN(void *argument)
   for(;;)
   {
 		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+		SPI_STOP_FLAG=false;
+		Output.measuredValue_count++;
 		FDCAN_ENABLE_INTERRUPTS();
     while(timeX<0)
 		{		
@@ -177,6 +211,8 @@ void Accelerometer1_RUN(void *argument)
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
 		Accelerometer_reset();
 		CLEAR_OUTPUT();
@@ -206,14 +242,15 @@ void Send_periodic_start(void *argument)
 			  {
 			    BCM_CANHS_R_04_data_ER[6]|=FRONT_PASSENGER_DOOR_OPEN;
 			  }
-			  else if(Input.Door_position==Rear_passenger1)
+			  else if(Input.Door_position==Rear_passengerRight)
 			  {
-			    BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER1_DOOR_OPEN;
+			    BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER_RIGHT_DOOR_OPEN;
 			  }
-			  else if(Input.Door_position==Rear_passenger2)
+			  else if(Input.Door_position==Rear_passengerLeft)
 			  {
-			    BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER2_DOOR_OPEN;
+			    BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER_LEFT_DOOR_OPEN;
 			  }
+				
 			}			
 		if(Input.has_vehicle_speed==true)
 			{
@@ -271,15 +308,20 @@ void SBR1_RUN(void *argument)
 			  SB_PORT=SB_FP_CTRL_GPIO_Port;
 			  SB_PIN=SB_FP_CTRL_Pin;
 			}
-			else if(Input.Seatbelt_position==Rear_passenger1)
+			else if(Input.Seatbelt_position==Rear_passengerRight)
 			{
 			  SB_PORT=SB_BP1_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP1_CTRL_Pin;
 			}
-			else if(Input.Seatbelt_position==Rear_passenger2)
+			else if(Input.Seatbelt_position==Rear_passengerCenter)
 			{
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
+			}
+			else if(Input.Seatbelt_position==Rear_passengerLeft)
+			{
+			  SB_PORT=SB_BP3_CTRL_GPIO_Port;
+			  SB_PIN=SB_BP3_CTRL_Pin;
 			}
 		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
 		HAL_Delay(1000);
@@ -310,6 +352,8 @@ void SBR1_RUN(void *argument)
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
     Input.testNumber=0;		
     	/*Used for debug purposes*/
@@ -345,15 +389,20 @@ void SBR2_RUN(void *argument)
 			  SB_PORT=SB_FP_CTRL_GPIO_Port;
 			  SB_PIN=SB_FP_CTRL_Pin;
 			}
-			else if(Input.Seatbelt_position==Rear_passenger1)
+			else if(Input.Seatbelt_position==Rear_passengerRight)
 			{
 			  SB_PORT=SB_BP1_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP1_CTRL_Pin;
 			}
-			else if(Input.Seatbelt_position==Rear_passenger2)
+			else if(Input.Seatbelt_position==Rear_passengerCenter)
 			{
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
+			}
+			else if(Input.Seatbelt_position==Rear_passengerLeft)
+			{
+			  SB_PORT=SB_BP3_CTRL_GPIO_Port;
+			  SB_PIN=SB_BP3_CTRL_Pin;
 			}
 		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
     osDelay(1000);//?????			
@@ -371,6 +420,8 @@ void SBR2_RUN(void *argument)
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);	
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
@@ -405,15 +456,20 @@ uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
 			  SB_PORT=SB_FP_CTRL_GPIO_Port;
 			  SB_PIN=SB_FP_CTRL_Pin;
 			}
-			else if(Input.Seatbelt_position==Rear_passenger1)
+			else if(Input.Seatbelt_position==Rear_passengerRight)
 			{
 			  SB_PORT=SB_BP1_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP1_CTRL_Pin;
 			}
-			else if(Input.Seatbelt_position==Rear_passenger2)
+			else if(Input.Seatbelt_position==Rear_passengerCenter)
 			{
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
+			}
+			else if(Input.Seatbelt_position==Rear_passengerLeft)
+			{
+			  SB_PORT=SB_BP3_CTRL_GPIO_Port;
+			  SB_PIN=SB_BP3_CTRL_Pin;
 			}
     HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
     osDelay(1000);			
@@ -431,6 +487,8 @@ uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);		
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
@@ -455,7 +513,7 @@ void SBR5_RUN(void *argument)
 		Output.testNumber=Input.testNumber;
 		Input.testNumber=0;
 		SEND_PERIODIC_MESSAGES=true;	
-		if(Input.Seatbelt_position==Driver)
+	if(Input.Seatbelt_position==Driver)
 			{
 			  SB_PORT=SB_DR_CTRL_GPIO_Port;
 			  SB_PIN=SB_DR_CTRL_Pin;
@@ -467,16 +525,22 @@ void SBR5_RUN(void *argument)
 			  SB_PIN=SB_FP_CTRL_Pin;
 				delay=33000;
 			}
-		else if(Input.Seatbelt_position==Rear_passenger1)
+		else if(Input.Seatbelt_position==Rear_passengerRight)
 			{
 			  SB_PORT=SB_BP1_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP1_CTRL_Pin;
 				delay=63000;
 			}
-		else if(Input.Seatbelt_position==Rear_passenger2)
+		else if(Input.Seatbelt_position==Rear_passengerCenter)
 			{
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
+				delay=63000;
+			}
+		else if(Input.Seatbelt_position==Rear_passengerLeft)
+			{
+			  SB_PORT=SB_BP3_CTRL_GPIO_Port;
+			  SB_PIN=SB_BP3_CTRL_Pin;
 				delay=63000;
 			}
 		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);	
@@ -496,6 +560,8 @@ void SBR5_RUN(void *argument)
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);		
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
@@ -534,13 +600,19 @@ void SBR6_RUN(void *argument)
 			  SB_PIN=SB_FP_CTRL_Pin;
 				delay=33000;
 			}
-		else if(Input.Seatbelt_position==Rear_passenger1)
+		else if(Input.Seatbelt_position==Rear_passengerRight)
 			{
 			  SB_PORT=SB_BP1_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP1_CTRL_Pin;
 				delay=63000;
 			}
-		else if(Input.Seatbelt_position==Rear_passenger2)
+		else if(Input.Seatbelt_position==Rear_passengerCenter)
+			{
+			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
+			  SB_PIN=SB_BP2_CTRL_Pin;
+				delay=63000;
+			}
+		else if(Input.Seatbelt_position==Rear_passengerLeft)
 			{
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
@@ -575,6 +647,8 @@ void SBR6_RUN(void *argument)
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
@@ -609,15 +683,20 @@ void SBR7_RUN(void *argument)
 			  SB_PORT=SB_FP_CTRL_GPIO_Port;
 			  SB_PIN=SB_FP_CTRL_Pin;
 			}
-		else if(Input.Seatbelt_position==Rear_passenger1)
+		else if(Input.Seatbelt_position== Rear_passengerRight)
 			{
 			  SB_PORT=SB_BP1_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP1_CTRL_Pin;
 			}
-		else if(Input.Seatbelt_position==Rear_passenger2)
+		else if(Input.Seatbelt_position== Rear_passengerCenter)
 			{
 			  SB_PORT=SB_BP2_CTRL_GPIO_Port;
 			  SB_PIN=SB_BP2_CTRL_Pin;
+			}
+			else if(Input.Seatbelt_position== Rear_passengerLeft)
+			{
+			  SB_PORT=SB_BP3_CTRL_GPIO_Port;
+			  SB_PIN=SB_BP3_CTRL_Pin;
 			}
 	  HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
 		SEND_DOORSTATE=true;
@@ -636,6 +715,8 @@ void SBR7_RUN(void *argument)
 		pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
+		len[0]=(uint8_t)message_length;
+		HAL_UART_Transmit(&huart4,len,1,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
 		/*Used for debug purposes*/
  /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));

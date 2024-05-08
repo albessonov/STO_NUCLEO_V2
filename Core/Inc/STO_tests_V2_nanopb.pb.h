@@ -16,10 +16,12 @@ typedef enum _Method {
 } Method;
 
 typedef enum _Position {
+    Not_Tracked = 0,
     Driver = 1,
     Front_passenger = 2,
-    Rear_passenger1 = 3,
-    Rear_passenger2 = 4
+    Rear_passengerRight = 3,
+    Rear_passengerCenter = 4,
+    Rear_passengerLeft = 5
 } Position;
 
 /* Struct definitions */
@@ -59,7 +61,7 @@ typedef struct _TestData {
     bool has_VehicleStateExtended;
     bool VehicleStateExtended; /* Для тестов SBR: 0-Sleeping ; 1-EngineRunning */
     bool has_Door_position;
-    Position Door_position; /* 1-Водитель;2-передний пассажир;3,4-задние пассажиры */
+    Position Door_position; /* 0-Водитель;1-передний пассажир;3,4-задние пассажиры */
     pb_size_t measuredValue_count;
     double measuredValue[10];
     pb_size_t frame_count;
@@ -84,9 +86,9 @@ extern "C" {
 #define _Method_MAX Method_GET
 #define _Method_ARRAYSIZE ((Method)(Method_GET+1))
 
-#define _Position_MIN Driver
-#define _Position_MAX Rear_passenger2
-#define _Position_ARRAYSIZE ((Position)(Rear_passenger2+1))
+#define _Position_MIN Not_Tracked
+#define _Position_MAX Rear_passengerLeft
+#define _Position_ARRAYSIZE ((Position)(Rear_passengerLeft+1))
 
 
 #define MCUSettings_method_ENUMTYPE Method
@@ -160,7 +162,7 @@ X(a, STATIC,   OPTIONAL, UENUM,    Door_position,     8) \
 X(a, STATIC,   REPEATED, DOUBLE,   measuredValue,     9) \
 X(a, STATIC,   REPEATED, MESSAGE,  frame,            10)
 #define TestData_CALLBACK NULL
-#define TestData_DEFAULT (const pb_byte_t*)"\x28\x01\x40\x01\x00"
+#define TestData_DEFAULT NULL
 #define TestData_frame_MSGTYPE CanFrame
 
 #define CanFrame_FIELDLIST(X, a) \

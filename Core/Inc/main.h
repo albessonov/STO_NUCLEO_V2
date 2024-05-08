@@ -56,6 +56,7 @@ void Error_Handler(void);
 void FDCAN_DISABLE_INTERRUPTS(void);
 void FDCAN_ENABLE_INTERRUPTS(void);
 void CLEAR_OUTPUT(void);
+void Accelerometer_reset(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -82,6 +83,8 @@ void CLEAR_OUTPUT(void);
 #define CH2_EXTI_IRQn EXTI1_IRQn
 #define YELLOW_LED_Pin GPIO_PIN_1
 #define YELLOW_LED_GPIO_Port GPIOE
+#define SB_BP3_CTRL_Pin GPIO_PIN_0
+#define SB_BP3_CTRL_GPIO_Port GPIOE
 
 /* USER CODE BEGIN Private defines */
 
