@@ -95,32 +95,32 @@ void vApplicationIdleHook( void )
 	    }
 		else if(Input.testNumber ==  0x06)
       {
-		    UARTRXcmd[1]=0;
+		     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 		    xTaskNotifyGive(SBR2Handle);			
 	    }
-		else if(Input.testNumber ==  0x07)
+		else if(Input.testNumber ==  0x07||Input.testNumber ==  0x08)
       {
-		    UARTRXcmd[1]=0;
+		     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 		    xTaskNotifyGive(SBR3_4Handle);			
 	    }
-		else if(Input.testNumber ==  0x08)
+		else if(Input.testNumber ==  0x09)
       {
-		    UARTRXcmd[1]=0;
+		     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 		    xTaskNotifyGive(SBR5Handle);			
-	    }
-     else if(Input.testNumber ==  0x09)
-      {
-		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR6Handle);			
 	    }
      else if(Input.testNumber ==  0x0A)
       {
-		    UARTRXcmd[1]=0;
-		    xTaskNotifyGive(SBR7Handle);					
+		    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+		    xTaskNotifyGive(SBR6Handle);			
 	    }
      else if(Input.testNumber ==  0x0B)
+      {
+		     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+		    xTaskNotifyGive(SBR7Handle);					
+	    }
+     else if(Input.testNumber ==  0x0C)
       {		    
-				UARTRXcmd[1]=0;
+				 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 		    xTaskNotifyGive(EDRHandle);					
 	    }		
 		else __NOP();
