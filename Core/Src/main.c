@@ -72,80 +72,103 @@ UART_HandleTypeDef huart4;
 osThreadId_t Init_testHandle;
 const osThreadAttr_t Init_test_attributes = {
   .name = "Init_test",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for CAN_period */
 osThreadId_t CAN_periodHandle;
 const osThreadAttr_t CAN_period_attributes = {
   .name = "CAN_period",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Accelerometer_run */
 osThreadId_t Accelerometer_runHandle;
 const osThreadAttr_t Accelerometer_run_attributes = {
   .name = "Accelerometer_run",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t Accelerometer_periodHandle;
 const osThreadAttr_t Accelerometer_period_attributes = {
   .name = "Accelerometer_period",
-  .stack_size = 1024 * 4,
+  .stack_size = 512*4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t Send_periodicHandle;
 const osThreadAttr_t Send_periodic_attributes = {
   .name = "Send_periodic",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SBR1Handle;
 const osThreadAttr_t SBR1_attributes = {
   .name = "SBR1",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SBR2Handle;
 const osThreadAttr_t SBR2_attributes = {
   .name = "SBR2",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SBR3_4Handle;
 const osThreadAttr_t SBR3_4_attributes = {
-  .name = "SBR2",
-  .stack_size = 1024 * 4,
+  .name = "SBR3",
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SBR5Handle;
 const osThreadAttr_t SBR5_attributes = {
   .name = "SBR5",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SBR6Handle;
 const osThreadAttr_t SBR6_attributes = {
   .name = "SBR6",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SBR7Handle;
 const osThreadAttr_t SBR7_attributes = {
   .name = "SBR7",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-
+osThreadId_t UDS1Handle;
+const osThreadAttr_t UDS1_attributes = {
+  .name = "UDS1",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t UDS2Handle;
+const osThreadAttr_t UDS2_attributes = {
+  .name = "UDS2",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t UDS3Handle;
+const osThreadAttr_t UDS3_attributes = {
+  .name = "UDS3",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 osThreadId_t EDRHandle;
 const osThreadAttr_t EDR_attributes = {
   .name = "EDR",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t DIAG2Handle;
+const osThreadAttr_t DIAG2_attributes = {
+  .name = "DIAG2",
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG;
+FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 volatile uint32_t time;
@@ -171,7 +194,10 @@ uint32_t ctr2=0;
 uint32_t ctr0=0;
 uint32_t TTF;
 volatile bool SPI_STOP_FLAG=false;
-
+/*Flags which are used to track Crashdetected signal state in accelerometer tests*/
+volatile bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
+volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
+/*----------------------------------------------------------*/
 extern TestData Output, Input,Debug;
 
 
@@ -205,28 +231,28 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   if(hspi == &hspi3)
   {
-		float *acceleration_X_ptr,*acceleration_Y_ptr;
-		if(Input.accDataNumber==0x01)
-		{
-			acceleration_X_ptr=XGE_1885_X;
-			acceleration_Y_ptr=XGE_1885_Y;//e
-		}
-		else if(Input.accDataNumber==0x02)
-		{
-			acceleration_X_ptr=XGF_FRONT_X;
-			acceleration_Y_ptr=XGF_FRONT_Y;
-		}
-		else if(Input.accDataNumber==0x03)
-		{
-			acceleration_X_ptr=XGE_1882_X;
-			acceleration_Y_ptr=XGE_1882_Y;
-		}
-		else if(Input.accDataNumber==0x04)
-		{
-			acceleration_X_ptr=XGE_1883_X;
-			acceleration_Y_ptr=XGE_1883_Y;
-		}
-		uint32_t acceleration_32;
+	float *acceleration_X_ptr,*acceleration_Y_ptr;
+	if(Input.accDataNumber==0x01)
+	{
+	  acceleration_X_ptr=XGE_1885_X;
+	  acceleration_Y_ptr=XGE_1885_Y;
+	}
+	else if(Input.accDataNumber==0x02)
+	{
+	  acceleration_X_ptr=XGF_FRONT_X;
+	  acceleration_Y_ptr=XGF_FRONT_Y;
+	}
+	else if(Input.accDataNumber==0x03)
+	{
+	  acceleration_X_ptr=XGE_1882_X;
+	  acceleration_Y_ptr=XGE_1882_Y;
+	}
+	else if(Input.accDataNumber==0x04)
+	{
+	  acceleration_X_ptr=XGE_1883_X;
+	  acceleration_Y_ptr=XGE_1883_Y;
+	}
+	uint32_t acceleration_32;
     if(memcmp(SPI_RXbuf,Request0x0cmd,4)==0)
     { 
        acceleration_32=form_acc(*(acceleration_X_ptr+ctr0),X);
@@ -251,216 +277,177 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 }
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
-	uint8_t CANRxData[8]={0,};
-	static CanFrame ReceivedFrame;
-	size_t message_length;
-	uint32_t measured_period;
+  uint8_t CANRxData[8]={0,};
+  static CanFrame ReceivedFrame;
+  size_t message_length;
+  uint32_t measured_period;
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET)
   {
-		//implementation for the first test which measures the launching time
-		//measures and transmits the time between reception of the UART command to launch test
-		//and first received CAN message
-		if(Input.testNumber==0x01)
-			{  
-			   			
-         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
-           {  
-				    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-            ReceivedFrame.id=RxHeader.Identifier;				
-				    ReceivedFrame.length=(RxHeader.DataLength)>>16;
-				    ReceivedFrame.data.size=ReceivedFrame.length;
-				    memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));
-					 
-				    Output.method=Method_GET;
-			      Output.testNumber=1;
-				    Output.has_accDataNumber=0;
-			      Output.measuredValue[0]=time;
-				    Output.measuredValue_count++;	 
-			      Output.frame[0]=ReceivedFrame;    
-	          Output.frame_count++;				 
-            pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, 256);
-            pb_encode(&streamwrt, TestData_fields, &Output);
-            message_length=streamwrt.bytes_written;
-						len[0]=(uint8_t)message_length;
-						HAL_UART_Transmit(&huart4,len,1,1000);
-            HAL_UART_Transmit(&huart4,Result,message_length,1000);				 
-            CLEAR_OUTPUT();
-            FDCAN_DISABLE_INTERRUPTS();
-					 }						 
-	    }
-		/*There is the implementation of a second test, which measures the period of 0x653 CAN message.
-		  Those message is being received 50 times, time interval between two consequent messages is being measured every time
-			then the average period is being calculated and transmitted via UART*/
-	  else if(Input.testNumber==0x02||Input.testNumber==0x03)
-      {
-				uint32_t ID;
-				if(Input.testNumber==0x02)
-					{
-						ID=0x653;
-					}
-				else
-          {
-				    ID=0x023;
-			    }					
-				HAL_GPIO_TogglePin(RED_LED_GPIO_Port,RED_LED_Pin);
-				//uint32_t average;
-				static uint8_t RXcounter=0;
-		     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK &&RxHeader.Identifier==ID)
-           {
-             timelist[RXcounter]=time*2;
-				     RXcounter++; 
-             time=0;    				 
-           }
-				 if(RXcounter==10)
-				 {
-				   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-           ReceivedFrame.id=RxHeader.Identifier;				
-				   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-				   ReceivedFrame.data.size=ReceivedFrame.length;
-           memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-				   Output.frame[0]=ReceivedFrame;
-				   Output.frame_count++;
-				 }
-         if(RXcounter==20)
-				 {
-				   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-           ReceivedFrame.id=RxHeader.Identifier;				
-				   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-				   ReceivedFrame.data.size=ReceivedFrame.length;
-           memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-				   Output.frame[1]=ReceivedFrame;
-				   Output.frame_count++;
-				 }
-         if(RXcounter==30)
-				 {
-				     ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-             ReceivedFrame.id=RxHeader.Identifier;				
-				     ReceivedFrame.length=(RxHeader.DataLength)>>16;
-				     ReceivedFrame.data.size=ReceivedFrame.length;
-             memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-				     Output.frame[2]=ReceivedFrame;
-				     Output.frame_count++;	 
-				 }
-         if(RXcounter==40)
-				   {
-				     ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-             ReceivedFrame.id=RxHeader.Identifier;				
-				     ReceivedFrame.length=(RxHeader.DataLength)>>16;
-				     ReceivedFrame.data.size=ReceivedFrame.length;
-             memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-				     Output.frame[3]=ReceivedFrame;
-				     Output.frame_count++;
-				   }	
-				 if(RXcounter==50)
-				   { 
-					  timelist[0]=timelist[5]; //костыль
-					   measured_period=buffer_average_value(timelist,50);
-				     ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-             ReceivedFrame.id=RxHeader.Identifier;				
-				     ReceivedFrame.length=(RxHeader.DataLength)>>16;
-					   ReceivedFrame.data.size=ReceivedFrame.length;
-             memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));		
-						 
-					   Output.method=Method_GET;					
-					   Output.testNumber=2;
-					   Output.has_accDataNumber=0;
-					   Output.measuredValue[0]=measured_period;
-             Output.measuredValue_count++;						 
-             Output.frame[4]=ReceivedFrame;
-						 Output.frame_count++;
-										   	
-					   Output.testNumber=Input.testNumber;
-		         Input.testNumber=0;
-		         Output.has_accDataNumber=Input.has_accDataNumber;
-		         Output.accDataNumber=Input.accDataNumber;
-		         pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-             pb_encode(&streamwrt, TestData_fields, &Output);
-             message_length=streamwrt.bytes_written;
-		         len[0]=(uint8_t)message_length;
-		         HAL_UART_Transmit(&huart4,len,1,1000);
-             HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
-						 RXcounter=0;
-	           Accelerometer_reset();
-		         CLEAR_OUTPUT();
-             						 
-				   }				
-	    }
-		/*The implemenation for tests which uses accelerometer;
-			Period of 0x023 frame is being measured and state of 
-			CrashDetected signal from 0x653 frame is being tracked*/
-    else if(Input.testNumber==0x04)
-		  {  
-				 static uint8_t RXcounter=0;
-		     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
-				 {
-   				 if(RxHeader.Identifier==0x023&&RXcounter<50)
-             { 
-                 timelist[RXcounter]=time*2;
-				         RXcounter++; 
-                 time=0;    				 		 				 
-				       if(RXcounter==50)
-				       { 
-					       timelist[0]=timelist[5]; //костыль
-					       measured_period=buffer_average_value(timelist,50);
-					      
-				         ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-                 ReceivedFrame.id=RxHeader.Identifier;				
-				         ReceivedFrame.length=(RxHeader.DataLength)>>16;
-						     ReceivedFrame.data.size=ReceivedFrame.length;
-                 memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-					
-					       Output.method=Method_GET;					
-					       Output.testNumber=2;
-					       Output.has_accDataNumber=0;
-					       Output.measuredValue[1]=measured_period;
-                 Output.measuredValue_count++;								 
-                 Output.frame[2]=ReceivedFrame;
-                 Output.frame_count++;								 
-              }
-             }
-				}
-    else if(Input.testNumber==0x04)
+   HAL_GPIO_TogglePin(RED_LED_GPIO_Port,RED_LED_Pin);
+/*implementation for the first test which measures the launching time measures and transmits the time between 
+        reception of the UART command to launch test and first received CAN message*/
+    if(Input.testNumber==0x11)
+    {  	   			
+       if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
+       {  
+		ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+		ReceivedFrame.id=RxHeader.Identifier;				
+		ReceivedFrame.length=(RxHeader.DataLength)>>16;
+		ReceivedFrame.data.size=ReceivedFrame.length;
+		memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData)); 
+		Output.method=Method_GET;
+	    Output.testNumber=1;
+		Output.has_accDataNumber=0;
+	    Output.measuredValue[0]=time;
+		Output.measuredValue_count++;	 
+	    Output.frame[0]=ReceivedFrame;    
+	    Output.frame_count++;				 
+        pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, 256);
+        pb_encode(&streamwrt, TestData_fields, &Output);
+        message_length=streamwrt.bytes_written;
+	    len[0]=(uint8_t)message_length;
+	    HAL_UART_Transmit(&huart4,len,1,1000);
+        HAL_UART_Transmit(&huart4,Result,message_length,1000);				 
+        CLEAR_OUTPUT();
+        FDCAN_DISABLE_INTERRUPTS();
+	   }						 
+    }
+/*There is the implementation of a test, which measures the period of 0x653 and 0x23 CAN message.
+  Those message is being received 50 times, time interval between two consequent messages is being measured every time
+  then the average period is being calculated and transmitted via UART*/
+//-------------------------------------Select id to measure-----------------------------//		
+    else if(Input.testNumber==0x12||Input.testNumber==0x13)
     {
-      static bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
-		  static bool CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
-				if(timeX>-80&&CRASH_DETECTED_BEFORE_COLLISION_TAKEN==false)
-					{
-						ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-            ReceivedFrame.id=RxHeader.Identifier;				
-				    ReceivedFrame.length=(RxHeader.DataLength)>>16;
-						ReceivedFrame.data.size=ReceivedFrame.length;
-            memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-						Output.frame[0]=ReceivedFrame;
-						Output.frame_count++;
-						CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
-					}
-						if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
-							{
-								ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-                ReceivedFrame.id=RxHeader.Identifier;				
-				        ReceivedFrame.length=(RxHeader.DataLength)>>16;
-						    ReceivedFrame.data.size=ReceivedFrame.length;
-                memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-								Output.frame[1]=ReceivedFrame;
-								Output.frame_count++;
-							  CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
-							}
-     }						
-				 }						 
-      }
-    else __NOP();
+	 uint32_t ID;
+	 if(Input.testNumber==0x02)
+	 {
+	  ID=0x653;
+	 }
+	 else
+     {
+	  ID=0x023;
+	 }
+//---------------------------------------Measurement-------------------------------------//		
+	 static uint8_t RXcounter=0;
+	 if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK &&RxHeader.Identifier==ID)
+     {
+       timelist[RXcounter]=time*2;
+	   RXcounter++; 
+       time=0;    				 
+     }
+	 if(RXcounter==10)
+	 {
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+ 	  ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
+	  Output.frame[0]=ReceivedFrame;
+	  Output.frame_count++;
+	 }
+     if(RXcounter==20)
+	 {
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
+	  Output.frame[1]=ReceivedFrame;
+      Output.frame_count++;
+	 }
+     if(RXcounter==30)
+	 {
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+	  ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
+	  Output.frame[2]=ReceivedFrame;
+	  Output.frame_count++;	 
+	 }
+     if(RXcounter==40)
+	 {
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+	  ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
+      Output.frame[3]=ReceivedFrame;
+	  Output.frame_count++;
+     }	
+	 if(RXcounter==50)
+	 { 
+	  timelist[0]=timelist[5]; //костыль
+	  measured_period=buffer_average_value(timelist,50);
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+	  ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));		 
+	  Output.method=Method_GET;					
+      Output.testNumber=2;
+	  Output.has_accDataNumber=0;
+	  Output.measuredValue[0]=measured_period;
+      Output.measuredValue_count++;						 
+      Output.frame[4]=ReceivedFrame;
+	  Output.frame_count++;							   	
+	  Output.testNumber=Input.testNumber;
+	  Input.testNumber=0;
+	  Output.has_accDataNumber=Input.has_accDataNumber;
+	  Output.accDataNumber=Input.accDataNumber;
+	  pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+      pb_encode(&streamwrt, TestData_fields, &Output);
+      message_length=streamwrt.bytes_written;
+	  len[0]=(uint8_t)message_length;
+	  HAL_UART_Transmit(&huart4,len,1,1000);
+      HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
+	  RXcounter=0;
+      Accelerometer_reset();
+	  CLEAR_OUTPUT();             						 
+	 }				
+    }
+/*Part which tracks state of CrashDetected signal from 0x653 frame */
+    else if(Input.testNumber==0x22)
+	{		
+	 if(timeX>-95&&CRASH_DETECTED_BEFORE_COLLISION_TAKEN==false)
+	 {
+      HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);		 
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+	  ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
+	  Output.frame[0]=ReceivedFrame;
+	  Output.frame_count++;
+	  CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
+	 }
+	 if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
+	 {
+	  HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	 
+	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;				
+	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+	  ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
+	  Output.frame[1]=ReceivedFrame;
+	  Output.frame_count++;
+	  CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
+	 }    						
+	}						 
   }
+ else __NOP();
+}
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	/*Handles CH0 rising edge interrupt(when crash occurs)*/
 	if(GPIO_Pin==CH4_Pin || GPIO_Pin==CH2_Pin)//
 	{		
-		HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
-		SPI_STOP_FLAG=true;
-		TTF=time*2;
-		Output.measuredValue[0]=TTF;
-		FDCAN_DISABLE_INTERRUPTS(); 		
+	 HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
+	 SPI_STOP_FLAG=true;
+	 TTF=time*2;
+	 Output.measuredValue[0]=TTF;
+	 FDCAN_DISABLE_INTERRUPTS(); 		
 	}
 }
 
@@ -527,23 +514,32 @@ int main(void)
 
   Accelerometer_runHandle = osThreadNew(Accelerometer1_RUN, NULL, &Accelerometer_run_attributes);
 	
-	Accelerometer_periodHandle = osThreadNew(Accelerometer_period_RUN, NULL, &Accelerometer_period_attributes);
+  Accelerometer_periodHandle = osThreadNew(Accelerometer_period_RUN, NULL, &Accelerometer_period_attributes);
 	
-	Send_periodicHandle = osThreadNew(Send_periodic_start, NULL, &Send_periodic_attributes);
+  Send_periodicHandle = osThreadNew(Send_periodic_start, NULL, &Send_periodic_attributes);
 	
-	SBR1Handle = osThreadNew(SBR1_RUN, NULL, &SBR1_attributes);
+  SBR1Handle = osThreadNew(SBR1_RUN, NULL, &SBR1_attributes);
 	
-	SBR2Handle = osThreadNew(SBR2_RUN, NULL, &SBR2_attributes);
+  SBR2Handle = osThreadNew(SBR2_RUN, NULL, &SBR2_attributes);
 	
-	SBR3_4Handle = osThreadNew(SBR3_4_RUN, NULL, &SBR3_4_attributes);
+  SBR3_4Handle = osThreadNew(SBR3_4_RUN, NULL, &SBR3_4_attributes);
    
-	SBR5Handle = osThreadNew(SBR5_RUN, NULL, &SBR5_attributes);
+  SBR5Handle = osThreadNew(SBR5_RUN, NULL, &SBR5_attributes);
 	
-	SBR6Handle = osThreadNew(SBR6_RUN, NULL, &SBR6_attributes);
+  SBR6Handle = osThreadNew(SBR6_RUN, NULL, &SBR6_attributes);
 	
-	SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
+  SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
 	
-	EDRHandle = osThreadNew(EDR_Transmitter, NULL, &EDR_attributes);
+  EDRHandle = osThreadNew(EDR_Transmitter, NULL, &EDR_attributes);
+	
+  DIAG2Handle = osThreadNew(DIAG2_RUN, NULL, &DIAG2_attributes);
+	
+  UDS1Handle = osThreadNew(UDS1_RUN, NULL, &UDS1_attributes);
+	
+  UDS2Handle = osThreadNew(UDS2_RUN, NULL, &UDS2_attributes);
+	
+  UDS3Handle = osThreadNew(UDS3_RUN, NULL, &UDS3_attributes);
+	
 	
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -675,8 +671,9 @@ static void MX_FDCAN1_Init(void)
   }
   /* USER CODE BEGIN FDCAN1_Init 2 */
   HAL_FDCAN_ConfigTimestampCounter(&hfdcan1,1);
-  FDCAN1->TSCC |=0x01;//internal clock source for timestamp
-	FDCAN1->RXF0C|=1<<31;
+  FDCAN1->TSCC |=0x01;//set internal clock source for timestamp
+  FDCAN1->RXF0C|=1<<31;//set RXFIFO0 overwrite mode
+  FDCAN1->RXF1C|=1<<31;//set RXFIFO1 overwrite mode
   /* USER CODE END FDCAN1_Init 2 */
 
 }
@@ -904,7 +901,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : SB_FP_CTRL_Pin SB_DR_CTRL_Pin SB_BP2_CTRL_Pin */
   GPIO_InitStruct.Pin = SB_FP_CTRL_Pin|SB_DR_CTRL_Pin|SB_BP2_CTRL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
@@ -925,7 +922,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : SB_BP1_CTRL_Pin */
   GPIO_InitStruct.Pin = SB_BP1_CTRL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SB_BP1_CTRL_GPIO_Port, &GPIO_InitStruct);
 
@@ -953,11 +950,11 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void Accelerometer_reset(void)
 {
-   	SPI_STOP_FLAG=false;
-		ctr0=0;
-		timeX=-100.5;
-		ctr2=0;
-		timeY=-100.5;
+  SPI_STOP_FLAG=false;
+  ctr0=0;
+  timeX=-100.5;
+  ctr2=0;
+  timeY=-100.5;
 }
 void CLEAR_OUTPUT(void)
 {
@@ -1038,15 +1035,15 @@ static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate, uint8_t size)
 }
 static void FDCAN1_Config(void)
 {
-	FDCAN_FilterTypeDef EDR_Filter;
+  FDCAN_FilterTypeDef EDR_Filter;
 /* Configure FIFO1 Rx filter for EDR messages*/ 
-    EDR_Filter.IdType = FDCAN_STANDARD_ID;
-    EDR_Filter.FilterIndex = 0;
-    EDR_Filter.FilterType = FDCAN_FILTER_RANGE;
-    EDR_Filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO1;
-    EDR_Filter.FilterID1 = 0x771;
-    EDR_Filter.FilterID2 = 0x773;
-    HAL_FDCAN_ConfigFilter(&hfdcan1, &EDR_Filter);
+  EDR_Filter.IdType = FDCAN_STANDARD_ID;
+  EDR_Filter.FilterIndex = 0;
+  EDR_Filter.FilterType = FDCAN_FILTER_RANGE;
+  EDR_Filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO1;
+  EDR_Filter.FilterID1 = 0x771;
+  EDR_Filter.FilterID2 = 0x773;
+  HAL_FDCAN_ConfigFilter(&hfdcan1, &EDR_Filter);
   // Configure global filter:
   if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_REJECT, FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE) != HAL_OK)
   {
@@ -1076,7 +1073,7 @@ static void FDCAN1_Config(void)
   BCM_CANHS_R_04.MessageMarker = 0;
 	
 	/*Prepare BRAKE_CANHS_R_01 Tx Header*/
-	BRAKE_CANHS_R_01.Identifier = 0x242;
+  BRAKE_CANHS_R_01.Identifier = 0x5D7;
   BRAKE_CANHS_R_01.IdType = FDCAN_STANDARD_ID;
   BRAKE_CANHS_R_01.TxFrameType = FDCAN_DATA_FRAME;
   BRAKE_CANHS_R_01.DataLength = FDCAN_DLC_BYTES_8;
@@ -1086,33 +1083,40 @@ static void FDCAN1_Config(void)
   BRAKE_CANHS_R_01.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   BRAKE_CANHS_R_01.MessageMarker = 0;
 	
-	/*Prepare DTOOL_to_AIRBAG Tx Header*/
-	DTOOL_to_AIRBAG.Identifier = 0x752;
+/*Prepare DTOOL_to_AIRBAG Tx Header*/
+  DTOOL_to_AIRBAG.Identifier = 0x752;
   DTOOL_to_AIRBAG.IdType = FDCAN_STANDARD_ID;
   DTOOL_to_AIRBAG.TxFrameType = FDCAN_DATA_FRAME;
-  DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;
+  DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_8;
   DTOOL_to_AIRBAG.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   DTOOL_to_AIRBAG.BitRateSwitch = FDCAN_BRS_OFF;
   DTOOL_to_AIRBAG.FDFormat = FDCAN_CLASSIC_CAN;
   DTOOL_to_AIRBAG.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   DTOOL_to_AIRBAG.MessageMarker = 0;
 	
-	FDCAN_DISABLE_INTERRUPTS();
+	/*Prepare CLUSTER_CANHS_RNr_01 Tx Header*/
+  CLUSTER_CANHS_RNr_01.Identifier = 0x4F8;
+  CLUSTER_CANHS_RNr_01.IdType = FDCAN_STANDARD_ID;
+  CLUSTER_CANHS_RNr_01.TxFrameType = FDCAN_DATA_FRAME;
+  CLUSTER_CANHS_RNr_01.DataLength = FDCAN_DLC_BYTES_8;
+  CLUSTER_CANHS_RNr_01.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  CLUSTER_CANHS_RNr_01.BitRateSwitch = FDCAN_BRS_OFF;
+  CLUSTER_CANHS_RNr_01.FDFormat = FDCAN_CLASSIC_CAN;
+  CLUSTER_CANHS_RNr_01.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  CLUSTER_CANHS_RNr_01.MessageMarker = 0;
+  FDCAN_DISABLE_INTERRUPTS();
 }
 
 
 /* USER CODE END 4 */
 
-
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
   if(htim->Instance == TIM1) //check if the interrupt comes from TIM1
-		{
-			time++; 
-			//HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_9); DEBUG
-		}
+  {
+	time++; 
+  }
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM13) {
     HAL_IncTick();
