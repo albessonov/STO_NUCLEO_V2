@@ -290,7 +290,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     {  	   			
        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
        {  
-		ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+	    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
 		ReceivedFrame.id=RxHeader.Identifier;				
 		ReceivedFrame.length=(RxHeader.DataLength)>>16;
 		ReceivedFrame.data.size=ReceivedFrame.length;
@@ -326,84 +326,84 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	 else
      {
 	  ID=0x023;
-	 }
+     }
 //---------------------------------------Measurement-------------------------------------//		
 	 static uint8_t RXcounter=0;
 	 if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK &&RxHeader.Identifier==ID)
      {
        timelist[RXcounter]=time*2;
-	   RXcounter++; 
+       RXcounter++; 
        time=0;    				 
      }
-	 if(RXcounter==10)
+     if(RXcounter==10)
 	 {
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
       ReceivedFrame.length=(RxHeader.DataLength)>>16;
- 	  ReceivedFrame.data.size=ReceivedFrame.length;
+      ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-	  Output.frame[0]=ReceivedFrame;
-	  Output.frame_count++;
+      Output.frame[0]=ReceivedFrame;
+      Output.frame_count++;
 	 }
      if(RXcounter==20)
 	 {
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
-	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
       ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-	  Output.frame[1]=ReceivedFrame;
+      Output.frame[1]=ReceivedFrame;
       Output.frame_count++;
 	 }
      if(RXcounter==30)
 	 {
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
-	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	  ReceivedFrame.data.size=ReceivedFrame.length;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-	  Output.frame[2]=ReceivedFrame;
-	  Output.frame_count++;	 
+      Output.frame[2]=ReceivedFrame;
+      Output.frame_count++;	 
 	 }
      if(RXcounter==40)
 	 {
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
-	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	  ReceivedFrame.data.size=ReceivedFrame.length;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
       Output.frame[3]=ReceivedFrame;
-	  Output.frame_count++;
+      Output.frame_count++;
      }	
 	 if(RXcounter==50)
 	 { 
-	  timelist[0]=timelist[5]; //костыль
-	  measured_period=buffer_average_value(timelist,50);
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      timelist[0]=timelist[5]; //костыль
+      measured_period=buffer_average_value(timelist,50);
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
-	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	  ReceivedFrame.data.size=ReceivedFrame.length;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));		 
-	  Output.method=Method_GET;					
+      Output.method=Method_GET;					
       Output.testNumber=2;
-	  Output.has_accDataNumber=0;
-	  Output.measuredValue[0]=measured_period;
+      Output.has_accDataNumber=0;
+      Output.measuredValue[0]=measured_period;
       Output.measuredValue_count++;						 
       Output.frame[4]=ReceivedFrame;
-	  Output.frame_count++;							   	
-	  Output.testNumber=Input.testNumber;
-	  Input.testNumber=0;
-	  Output.has_accDataNumber=Input.has_accDataNumber;
-	  Output.accDataNumber=Input.accDataNumber;
-	  pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+      Output.frame_count++;							   	
+      Output.testNumber=Input.testNumber;
+      Input.testNumber=0;
+      Output.has_accDataNumber=Input.has_accDataNumber;
+      Output.accDataNumber=Input.accDataNumber;
+      pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
       pb_encode(&streamwrt, TestData_fields, &Output);
       message_length=streamwrt.bytes_written;
-	  len[0]=(uint8_t)message_length;
-	  HAL_UART_Transmit(&huart4,len,1,1000);
+      len[0]=(uint8_t)message_length;
+      HAL_UART_Transmit(&huart4,len,1,1000);
       HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
-	  RXcounter=0;
+      RXcounter=0;
       Accelerometer_reset();
-	  CLEAR_OUTPUT();             						 
+      CLEAR_OUTPUT();             						 
 	 }				
     }
 /*Part which tracks state of CrashDetected signal from 0x653 frame */
@@ -412,27 +412,27 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	 if(timeX>-95&&CRASH_DETECTED_BEFORE_COLLISION_TAKEN==false)
 	 {
       HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);		 
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
-	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	  ReceivedFrame.data.size=ReceivedFrame.length;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-	  Output.frame[0]=ReceivedFrame;
-	  Output.frame_count++;
-	  CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
-	 }
-	 if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
-	 {
-	  HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	 
-	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      Output.frame[0]=ReceivedFrame;
+      Output.frame_count++;
+      CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
+     }
+     if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
+     {
+      HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	 
+      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
       ReceivedFrame.id=RxHeader.Identifier;				
-	  ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	  ReceivedFrame.data.size=ReceivedFrame.length;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
       memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-	  Output.frame[1]=ReceivedFrame;
-	  Output.frame_count++;
-	  CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
-	 }    						
+      Output.frame[1]=ReceivedFrame;
+      Output.frame_count++;
+      CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
+     }    						
 	}						 
   }
  else __NOP();
