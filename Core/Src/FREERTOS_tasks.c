@@ -20,7 +20,9 @@ extern volatile double timeX,timeY;
 extern uint32_t ctr2;
 extern uint32_t ctr0;
 extern uint32_t TTF;
+/*флаг, управляющий работой эмулятора акселерометра*/
 extern volatile bool SPI_STOP_FLAG;
+/*объекты структуры, используемой для приема-передачи данных о тестах*/
 TestData Output=TestData_init_zero;
 TestData Input=TestData_init_zero;
 TestData Debug=TestData_init_zero;
@@ -28,12 +30,14 @@ TestData Debug=TestData_init_zero;
 volatile bool SEND_PERIODIC_MESSAGES=false;
 volatile bool SEND_DOORSTATE=false;
 volatile bool SEND_CLUSTER=false;
-/*-----------------------------------------------------------------*/
+volatile bool SEND_VEHICLE_STATE=true;
+/*флаги, используемые для отслеживание сигнала CD до и после столкновения*/
 extern volatile bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN;
-extern volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN;
+extern volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN;\
+/*массивы, отправляемые по UART*/
 extern uint8_t Result[256];
 extern uint8_t len[1];
-
+/*данные для тестов самодиагностики БУ*/
 
 
 void vApplicationIdleHook( void )
@@ -122,7 +126,7 @@ void vApplicationIdleHook( void )
     else if(Input.testNumber ==  0x52||Input.testNumber ==  0x53)
     {		    
 	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
-	 xTaskNotifyGive(DIAG2Handle);					
+	 xTaskNotifyGive(DIAG2_3Handle);					
 	}				
 	 else __NOP();
   }
@@ -132,7 +136,7 @@ void vApplicationIdleHook( void )
 
 void Init_test_run(void *argument)
 {
-	/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
+/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
   for(;;)
   {
    ulTaskNotifyTake( pdTRUE,portMAX_DELAY );
@@ -144,8 +148,7 @@ void Init_test_run(void *argument)
 
 void CAN_2_RUN(void *argument)
 {
-	/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
-  /* Infinite loop */
+/*Certain implementation is given in HAL_FDCAN_RxFifo0Callback*/
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
@@ -155,7 +158,6 @@ void CAN_2_RUN(void *argument)
 }
 void Accelerometer_period_RUN(void *argument)
 {
-  /* USER CODE BEGIN Accelerometer1_RUN */
 	/*Runs the accelerometer emualator, set of accelerations is hardcoded*/
   /* Infinite loop */
   for(;;)
@@ -174,8 +176,7 @@ void Accelerometer_period_RUN(void *argument)
 	HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
     HAL_Delay(25);//Must be removed
    }
-  }
-  /* USER CODE END Accelerometer_period_RUN */
+  } 
 }
 
 void Accelerometer1_RUN(void *argument)
@@ -230,7 +231,7 @@ void Accelerometer1_RUN(void *argument)
 }
 void Send_periodic_start(void *argument)
 {
-	/*Задача разблокируется при запуске любого из тестов SBR, отправляемые сообщениязависят от полученной команды*/
+/*Задача разблокируется при запуске любого из тестов SBR/самодиагностики,отправляемые сообщения зависят от полученной команды*/
 	uint8_t BCM_CANHS_R_04_data_ER[8]={0x70,0,0,0,0,0,0,0};	//engine running
 	uint8_t BCM_CANHS_R_04_data_S[8]={0x00,0,0,0,0,0,0,0};	//sleeping
 	uint8_t Vehicle_Speed_15kmh[8]={0x05,0xDC,0,0,0,0,0,0};
@@ -241,9 +242,10 @@ void Send_periodic_start(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
-   if(Input.has_Door_position==true)
+/*------------------------Выбор позиции двери--------------------------*/
+   if(Input.has_Door_position==true&&SEND_DOORSTATE==true)
    {
-     if(Input.Door_position==Driver&&SEND_DOORSTATE==true)
+     if(Input.Door_position==Driver)
      {
 	  BCM_CANHS_R_04_data_ER[6]|=DRIVER_DOOR_OPEN;
      }
@@ -259,7 +261,8 @@ void Send_periodic_start(void *argument)
      {
 	  BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER_LEFT_DOOR_OPEN;
      }
-   }			
+   }
+/*----------Выбор отправляемой скорости--------------*/   
    if(Input.has_vehicle_speed==true)
    {
      if(Input.vehicle_speed==_40KMH)
@@ -271,6 +274,7 @@ void Send_periodic_start(void *argument)
 	  Speed=Vehicle_Speed_15kmh;
 	 }	
    }
+/*---------------Выбор VehicleStateExtended---------------------------*/
    if(Input.VehicleStateExtended==Sleeping)
    {
     VehicleState=BCM_CANHS_R_04_data_S;
@@ -279,9 +283,13 @@ void Send_periodic_start(void *argument)
    {
 	VehicleState=BCM_CANHS_R_04_data_ER;
    }
+/*----------------------Отправка сообщений---------------------------*/
    while(SEND_PERIODIC_MESSAGES==true)
    {
-     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BCM_CANHS_R_04,VehicleState); //0x350
+     if(SEND_VEHICLE_STATE==true)
+     {         
+      HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BCM_CANHS_R_04,VehicleState); //0x350
+     }
      if(Input.has_vehicle_speed==true)
      {
 	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_CANHS_R_01,Speed); //0x5D7
@@ -521,7 +529,7 @@ void SBR5_RUN(void *argument)
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
    SEND_PERIODIC_MESSAGES=true;
-/*------------------------------Select seatbelt--------------------------*/	  
+/*------------------------------Select seatbelt and timeout--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
 	SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -575,7 +583,6 @@ void SBR5_RUN(void *argument)
    HAL_UART_Transmit(&huart4,Result,message_length,1000);		
    CLEAR_OUTPUT();
    xTaskNotifyStateClear(Send_periodicHandle);
-
   }
 }
 void SBR6_RUN(void *argument)
@@ -736,14 +743,14 @@ void UDS1_RUN(void *argument)
   uint8_t UDS_response[8]={0,};
   CanFrame ReceivedFrame;
   size_t message_length;
-  uint32_t tmp =0;
+  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0; 	  
-   tmp=FDCAN1->RXF1S;
+   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
    ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
@@ -780,18 +787,18 @@ void UDS2_RUN(void *argument)
   uint8_t UDS_response[8]={0,};
   CanFrame ReceivedFrame;
   size_t message_length;
-  uint32_t tmp =0;
+  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   tmp=FDCAN1->RXF1S;
 //---------------------------DIAG LED ON-------------------------------------//
    if(Input.LED==UDS_LED_DIAG_LED_ON)
    {	  
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;   
 	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
     ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
     ReceivedFrame.data.size=6;
@@ -815,6 +822,7 @@ void UDS2_RUN(void *argument)
    {
     UDS_request[5]=0x01; 
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
 	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
     ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
     ReceivedFrame.data.size=6;
@@ -838,7 +846,8 @@ void UDS2_RUN(void *argument)
    {
     UDS_request[5]=0x00;
     UDS_request[3]=0x02;		 
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);\
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
 	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
     ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
     ReceivedFrame.data.size=6;
@@ -862,6 +871,7 @@ void UDS2_RUN(void *argument)
    {
     UDS_request[5]=0x01; 
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
 	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
     ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
     ReceivedFrame.data.size=6;
@@ -899,15 +909,16 @@ void UDS3_RUN(void *argument)
  uint8_t UDS_response[8]={0,};
  CanFrame ReceivedFrame;
  size_t message_length;
- uint32_t tmp =0;
+ uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   tmp=FDCAN1->RXF1S;	  
+   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
    ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
    ReceivedFrame.data.size=4;
@@ -918,7 +929,6 @@ void UDS3_RUN(void *argument)
    {
 	HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    }
-   tmp=FDCAN1->RXF1S;
 //--------------------------Wait 5s----------------------------------//	  
    osDelay(4000);
    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
@@ -970,6 +980,233 @@ void UDS3_RUN(void *argument)
    CLEAR_OUTPUT();		 
   }
 }	
+void DIAG1_RUN(void *argument)
+{	
+  size_t message_length;
+  for(;;)
+  {
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_CLUSTER=true;
+    xTaskNotifyGive(Send_periodicHandle);
+    Output.testNumber=Input.testNumber;
+    Input.testNumber=0;
+    osDelay(4000);
+    /*добавить чтение нормального сопротивления*/
+    UDS_READ_ERRORS(0x09);
+/*------------------------Forming output-------------------------------------*/
+    Output.method=Method_GET;
+    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+    len[0]=(uint8_t)message_length;
+    HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+    CLEAR_OUTPUT();
+    SEND_PERIODIC_MESSAGES=false;
+    SEND_CLUSTER=false;      
+  }
+}
+void DIAG2_3_RUN(void *argument)
+{	
+  size_t message_length;
+  for(;;)
+  {
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_CLUSTER=true;
+    xTaskNotifyGive(Send_periodicHandle);
+    Output.testNumber=Input.testNumber;
+    Input.testNumber=0;
+    osDelay(10000);
+    UDS_READ_ERRORS(0x09);   
+    if(Input.testNumber==0x52)//высокое напряжение
+    {
+/*-------------------Остановка отправки сообщений 0х5D7-------------------------*/
+     Input.has_vehicle_speed=false;
+     osDelay(1000);
+/*-----------------------------------------------------------------------------*/
+/*------------------------Считывание ошибок 0х09--------------------------------*/
+     UDS_READ_ERRORS(0x09);
+    }    
+/*----------------------------------------------------------------------------------*/    
+    else if(Input.testNumber==0x53)
+    {
+     xTaskNotifyGive(DIAG1Handle);//проводим тест на изменение состояний выходов пиропатронов
+    }    
+/*------------------------Forming output-------------------------------------*/
+    Output.method=Method_GET;
+    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+    len[0]=(uint8_t)message_length;
+    HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+    CLEAR_OUTPUT();
+    SEND_PERIODIC_MESSAGES=false;
+    SEND_CLUSTER=false;     
+  }  
+}
+
+void DIAG4_RUN(void *argument)
+{	
+  uint8_t VIN_RESET_1[8]={0x10,0x11,0x2E,0xF1,0x90,0x00,0x00,0x00};
+  uint8_t VIN_RESET_2[8]={0x21,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+  uint8_t DIAG_RESPONSE[8]={0,};
+  uint8_t RESTART_REQUEST[3]={0x02,0x11,0x01};
+  uint32_t Put_index1;
+  size_t message_length;
+  for(;;)
+  {
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_CLUSTER=true;
+    xTaskNotifyGive(Send_periodicHandle);
+/*-----------------------------Запись VIN=0----------------------------------------*/      
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+	while((((FDCAN1->RXF1S)&0x00FF0000)>>16)<Put_index1)
+	{
+	 HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
+	}
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
+    VIN_RESET_2[0]+=0x01;
+    osDelay(10);
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
+    osDelay(10);
+/*-------------------------Перезапуск БУ--------------------------------*/
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,RESTART_REQUEST);
+    osDelay(1000);
+/*---------------------------Считывание ошибок 0х09---------------------------------------*/   
+    UDS_READ_ERRORS(0x09); 
+/*--------------------------------Запись ненулевого VIN-----------------------------------*/ 
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+	while((((FDCAN1->RXF1S)&0x00FF0000)>>16)<Put_index1)
+	{
+	 HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
+	}
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
+    VIN_RESET_2[0]+=0x01;
+    VIN_RESET_2[1]=0xAA;
+    osDelay(10);
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
+    osDelay(1000);
+/*------------------------------------------Cчитывание ошибок 0х08--------------------------------------------------------*/
+    UDS_READ_ERRORS(0x08);
+///-----------------------------------------------------------------------------------------------------------------------------///       
+/*------------------------Forming output-------------------------------------*/
+    Output.method=Method_GET;
+    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+    len[0]=(uint8_t)message_length;
+    HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+    CLEAR_OUTPUT();
+    SEND_PERIODIC_MESSAGES=false;
+    SEND_CLUSTER=false;     
+	
+  }
+}
+void DIAG5_RUN(void *argument)
+{	
+
+  size_t message_length;
+  for(;;)
+  {
+/*------------------------------Тест на срабатывание----------------------------------*/
+   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   SEND_PERIODIC_MESSAGES=true;
+   SEND_CLUSTER=true;
+   xTaskNotifyGive(Send_periodicHandle);      
+   while(timeX<0)
+   {		
+	HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    HAL_Delay(25);//Must be removed
+   }
+   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+   time = 0;
+   while(timeX<290&&SPI_STOP_FLAG==false)
+   {
+	HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    HAL_Delay(25);//Must be removed      
+   }
+/*---------------------------------Считывание ошибок 0х09---------------------------------------------------*/
+    UDS_READ_ERRORS(0x09);
+///---------------------------------------Forming output----------------------------------------------///
+    Output.method=Method_GET;
+    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+    len[0]=(uint8_t)message_length;
+    HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+    CLEAR_OUTPUT();
+    SEND_PERIODIC_MESSAGES=false;
+    SEND_CLUSTER=false;   
+  }  
+}
+void DIAG6_RUN(void *argument)
+{	
+  for(;;)
+  {
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_CLUSTER=true;
+    xTaskNotifyGive(Send_periodicHandle); 
+/*нужно отредактировать proto файл и добавить выбор сообщения, 
+которое мы перестаём отправлять*/      
+  }
+}
+void DIAG7_8_RUN(void *argument)
+{	
+  size_t message_length;
+  for(;;)
+  {
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_CLUSTER=true;
+    xTaskNotifyGive(Send_periodicHandle);
+    osDelay(4000);
+    UDS_READ_ERRORS(0x09);
+///---------------------------------------Forming output----------------------------------------------///
+    Output.method=Method_GET;
+    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+    len[0]=(uint8_t)message_length;
+    HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+    CLEAR_OUTPUT();
+    SEND_PERIODIC_MESSAGES=false;
+    SEND_CLUSTER=false;         
+  }
+}
+void DIAG9_RUN(void *argument)
+{
+  size_t message_length;  
+  for(;;)
+  {
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_CLUSTER=true;
+    xTaskNotifyGive(Send_periodicHandle);
+    osDelay(4000);
+    UDS_READ_ERRORS(0x08);
+///---------------------------------------Forming output----------------------------------------------///
+    Output.method=Method_GET;
+    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+    len[0]=(uint8_t)message_length;
+    HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+    CLEAR_OUTPUT();
+    SEND_PERIODIC_MESSAGES=false;
+    SEND_CLUSTER=false;         
+  }
+}
 void EDR_Transmitter(void *argument)
 {
 	uint8_t EDR_request[4]={0x03,0x22,0xFA,0x11};
@@ -999,103 +1236,5 @@ void EDR_Transmitter(void *argument)
 		EDR_buffer[7*(RXcounter+1)+3+i]=CANRxdata[i+1];
 	  }
 	HAL_UART_Transmit(&huart4,EDR_buffer,7*(RXcounter+1)+8,1000);
-  }
-}
-void DIAG2_RUN(void *argument)
-{	
-  uint8_t VOLTAGE_REQUEST_H[8]={0x05,0x19,0x05,0x90,0x98,0x17};
-  uint8_t VOLTAGE_REQUEST_L[8]={0x05,0x19,0x05,0x90,0x98,0x17};
-  uint8_t* SB_STATE_REQUEST;
-  uint8_t DIAG_RESPONSE[8]={0,};
-  CanFrame ReceivedFrame;
-  size_t message_length;
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);
-    if(Input.testNumber==0x0E)
-			{
-        SB_STATE_REQUEST=VOLTAGE_REQUEST_H;
-      }
-    else
-		  {
-       SB_STATE_REQUEST=VOLTAGE_REQUEST_L;
-      }				
-		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,SB_STATE_REQUEST);
-		while(DIAG_RESPONSE[0]==0)
-			{
-		    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-			}
-//--------------------------------ReceivedFrame --------------------------------------------------------------------//
-	ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;				
-	ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	ReceivedFrame.data.size=ReceivedFrame.length;			
-	memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));				
-//------------------------------ Forming Output ---------------------------------------------------------------------//
-	Output.frame[0]=ReceivedFrame;
-	Output.frame_count++;			
-	Output.method=Method_GET;
-	Output.testNumber=Input.testNumber;
-	Output.has_Seatbelt_position=Input.has_Door_position;
-	Output.Seatbelt_position=Input.Door_position;	
-	pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-	len[0]=(uint8_t)message_length;
-	HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-	SEND_PERIODIC_MESSAGES=false;
-	CLEAR_OUTPUT();
-	xTaskNotifyStateClear(Send_periodicHandle);
-	
-  }
-}
-void DIAG3_RUN(void *argument)
-{	
-  uint8_t VIN_RESET_1[8]={0x10,0x11,0x2E,0xF1,0x90,0x00,0x00,0x00};
-  uint8_t VIN_RESET_2[8]={0x21,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-  uint8_t VIN_RESET_3[8]={0x22,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-  uint8_t VIN_REQUEST[8]={0x05,0x19,0x05,0x90,0x98,0x17};
-  uint8_t DIAG_RESPONSE[8]={0,};
-  CanFrame ReceivedFrame;
-  size_t message_length;
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);				
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
-	while(RxHeader.Identifier!=0x772)
-		{
-		  HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-		}
-	ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;				
-	ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	ReceivedFrame.data.size=ReceivedFrame.length;
-	memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));	
-	Output.frame[0]=ReceivedFrame;
-	Output.frame_count++;			
-	Output.method=Method_GET;
-	Output.testNumber=Input.testNumber;
-	Output.has_Seatbelt_position=Input.has_Door_position;
-	Output.Seatbelt_position=Input.Door_position;	
-	pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-	len[0]=(uint8_t)message_length;
-	HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-		/*Used for debug purposes*/
- /* pb_istream_t streamrd = pb_istream_from_buffer(Result, sizeof(Result));
-    pb_decode(&streamrd, TestData_fields, &Debug);*/
-	SEND_PERIODIC_MESSAGES=false;
-	CLEAR_OUTPUT();
-	xTaskNotifyStateClear(Send_periodicHandle);
-	
   }
 }

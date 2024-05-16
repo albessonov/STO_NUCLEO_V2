@@ -57,6 +57,7 @@ void FDCAN_DISABLE_INTERRUPTS(void);
 void FDCAN_ENABLE_INTERRUPTS(void);
 void CLEAR_OUTPUT(void);
 void Accelerometer_reset(void);
+void UDS_READ_ERRORS(uint8_t status_byte);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
