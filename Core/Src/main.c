@@ -1033,43 +1033,47 @@ void UDS_READ_ERRORS(uint8_t status_byte)
  uint8_t DIAG_RESPONSE[8]={0,}; 
  CanFrame ReceivedFrame;
  uint8_t NEW_MESSAGES_COUNT;
-/*------------------------------------------Cчитывание ошибок 0х09--------------------------------------------------------*/\
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;\
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_request);\
-    osDelay(100);/*таймаут для приёма сообщений*/\
-/*---------------------Получение первого DTC-----------------------*/ \
-    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);\
-    ReceivedFrame.timestamp=RxHeader.RxTimestamp;\
-    ReceivedFrame.id=RxHeader.Identifier;\
-    ReceivedFrame.length=(RxHeader.DataLength)>>16;\
-    ReceivedFrame.data.size=ReceivedFrame.length;\
-    memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));\
-    Output.frame[0]=ReceivedFrame;\
-/*-------------------Запрос на считывание остальных DTC-----------------------------*/\
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;\
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,print_DTC);\
-    osDelay(100);/*таймаут для приёма сообщений*/ \
-    Put_index2=((FDCAN1->RXF1S)&0x00FF0000)>>16;\
-/*------------------Подсчет числа сообщений-----------------------------*/\
-    if(Put_index2>Put_index1)\
-    {\
-      NEW_MESSAGES_COUNT=Put_index2-Put_index1;\
-    }\
-    else\
-    {\
+/*------------------------------------------Cчитывание ошибок--------------------------------------------------------*/\
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_request);
+    osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/
+/*---------------------Получение первого DTC-----------------------*/ 
+    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
+    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+    ReceivedFrame.id=RxHeader.Identifier;
+    ReceivedFrame.length=(RxHeader.DataLength)>>16;
+    ReceivedFrame.data.size=ReceivedFrame.length;
+    memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));
+    Output.frame[0]=ReceivedFrame;
+    Output.frame_count++;
+/*-------------------Запрос на считывание остальных DTC-----------------------------*/
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_3;
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,print_DTC);
+    osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/ 
+    Put_index2=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+/*------------------Подсчет числа сообщений-----------------------------*/
+    if(Put_index2>Put_index1)
+    {
+      NEW_MESSAGES_COUNT=Put_index2-Put_index1;
+    }
+    else
+    {
       NEW_MESSAGES_COUNT=0x40-Put_index1+Put_index2;\
-    }\
+    }
 /*--------------------------Считывание ошибок-----------------------------------------------*/\
-    for(uint8_t i=0;i<NEW_MESSAGES_COUNT;i++)\
-    {\
-      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);\
-   	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;\
-      ReceivedFrame.id=RxHeader.Identifier;\
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;\
-      ReceivedFrame.data.size=ReceivedFrame.length;\
-      memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));\
-      Output.frame[i+1]=ReceivedFrame;\
-    }\
+    for(uint8_t i=0;i<NEW_MESSAGES_COUNT;i++)
+    {
+      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
+   	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+      ReceivedFrame.id=RxHeader.Identifier;
+      ReceivedFrame.length=(RxHeader.DataLength)>>16;
+      ReceivedFrame.data.size=ReceivedFrame.length;
+      memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));
+      Output.frame[i+1]=ReceivedFrame;
+      Output.frame_count++;
+    }
 }
 void Accelerometer_reset(void)
 {
@@ -1158,6 +1162,7 @@ static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate, uint8_t size)
 }
 static void FDCAN1_Config(void)
 {
+    
   FDCAN_FilterTypeDef EDR_Filter;
 /* Configure FIFO1 Rx filter for EDR messages*/ 
   EDR_Filter.IdType = FDCAN_STANDARD_ID;
@@ -1216,6 +1221,7 @@ static void FDCAN1_Config(void)
   DTOOL_to_AIRBAG.FDFormat = FDCAN_CLASSIC_CAN;
   DTOOL_to_AIRBAG.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   DTOOL_to_AIRBAG.MessageMarker = 0;
+  
 	
 	/*Prepare CLUSTER_CANHS_RNr_01 Tx Header*/
   CLUSTER_CANHS_RNr_01.Identifier = 0x4F8;
@@ -1230,7 +1236,53 @@ static void FDCAN1_Config(void)
   FDCAN_DISABLE_INTERRUPTS();
 }
 
-
+unsigned long SeedToKey(unsigned long seed,unsigned char rnd)
+ {
+ unsigned int i;
+ unsigned long key=seed;
+ if(rnd<(255-35)) rnd+=35;
+ else rnd=255;
+ for(i=1;i<=rnd; i++)
+ { if((key&0x80000000)!=0) key=(key<<1)^Mask03;
+ else key<<=1; }
+ return key;
+ }
+void EnterSecurityAccess(void)
+{
+    uint8_t Put_index1=0;
+    uint8_t ECU_response[8];
+    uint8_t ExtendedSession[3]={0x02,0x10,0x02};
+    uint8_t Request_seed[4]={0x03,0x27,0x01,0x00};
+    uint8_t Enter_key[7]={0x06,0x27,0x02,0,0,0,0};
+    uint32_t seed,key;
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ExtendedSession);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    while(_NO_RX_FIFO1_NEW_MESSAGE)
+    {
+      __NOP();
+    }
+    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request_seed);
+    while(_NO_RX_FIFO1_NEW_MESSAGE)
+    {
+      __NOP();
+    }
+    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
+    seed=(ECU_response[3]<<24)+(ECU_response[4]<<16)+(ECU_response[5]<<8)+(ECU_response[6]);
+    key=SeedToKey(seed,0);
+    for(uint8_t i=0;i<4;i++)
+    {
+     Enter_key[i+3]=(uint8_t)(key>>8*(3-i));
+    }
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Enter_key);
+    while(_NO_RX_FIFO1_NEW_MESSAGE)
+    {
+      __NOP();
+    }
+    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
+}   
 /* USER CODE END 4 */
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)

@@ -26,6 +26,13 @@
 extern "C" {
 #endif
 
+#define DEBUG_MODE
+
+#ifdef DEBUG_MODE
+   #define UDS_DELAY 5000
+#else
+   #define UDS_DELAY 100
+#endif   
 /* Includes ------------------------------------------------------------------*/
 #include "stm32h7xx_hal.h"
 
@@ -58,6 +65,7 @@ void FDCAN_ENABLE_INTERRUPTS(void);
 void CLEAR_OUTPUT(void);
 void Accelerometer_reset(void);
 void UDS_READ_ERRORS(uint8_t status_byte);
+unsigned long SeedToKey(unsigned long seed,unsigned char rnd);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
