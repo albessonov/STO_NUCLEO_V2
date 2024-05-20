@@ -41,6 +41,7 @@ sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
 sto_nucleo_v2\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
+sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 sto_nucleo_v2\main.o: ../Core/Inc/FreeRTOSConfig.h
@@ -53,7 +54,6 @@ sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 sto_nucleo_v2\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
-sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 sto_nucleo_v2\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 sto_nucleo_v2\main.o: ../Core/Inc/pb_encode.h
 sto_nucleo_v2\main.o: ../Core/Inc/pb.h

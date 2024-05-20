@@ -256,24 +256,9 @@ void Send_periodic_start(void *argument)
   {
    ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 /*------------------------Выбор позиции двери--------------------------*/
-   if(Input.has_Door_position==true&&SEND_DOORSTATE==true)
-   {
-     if(Input.Door_position==Driver)
-     {
-	  BCM_CANHS_R_04_data_ER[6]|=DRIVER_DOOR_OPEN;
-     }
-     else if(Input.Door_position==Front_passenger)
-     {
-	  BCM_CANHS_R_04_data_ER[6]|=FRONT_PASSENGER_DOOR_OPEN;
-     }
-     else if(Input.Door_position==Rear_passengerRight)
-     {
-	  BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER_RIGHT_DOOR_OPEN;
-     }
-     else if(Input.Door_position==Rear_passengerLeft)
-     {
-	  BCM_CANHS_R_04_data_ER[7]|=REAR_PASSENGER_LEFT_DOOR_OPEN;
-     }
+   if(SEND_DOORSTATE==true)
+   {   
+	 BCM_CANHS_R_04_data_ER[6]|=DRIVER_DOOR_OPEN;
    }
 /*----------Выбор отправляемой скорости--------------*/   
    if(Input.has_vehicle_speed==true)
@@ -318,10 +303,8 @@ void Send_periodic_start(void *argument)
 void SBR1_RUN(void *argument)
 {
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-  CanFrame ReceivedFrame;
   GPIO_TypeDef* SB_PORT;
   uint16_t SB_PIN;
-  size_t message_length;
   /* Infinite loop */
   for(;;)
   {
@@ -360,46 +343,24 @@ void SBR1_RUN(void *argument)
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
    HAL_Delay(1000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
    HAL_Delay(1000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-/*--------------------------------Forming output--------------------------------------*/	
-   Output.frame[1]=ReceivedFrame;
-   Output.frame_count++;
-   Output.method=Method_GET;
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+/*--------------------------------Forming output--------------------------------------*/
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
-   Output.Seatbelt_position=Input.Seatbelt_position;		
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   Input.testNumber=0;		
+   Output.Seatbelt_position=Input.Seatbelt_position;
+   Send_Result();
    SEND_PERIODIC_MESSAGES=false;
-   CLEAR_OUTPUT();
    xTaskNotifyStateClear(Send_periodicHandle);
   }
 }
 void SBR2_RUN(void *argument)
 {
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-  CanFrame ReceivedFrame;
   GPIO_TypeDef* SB_PORT;
   uint16_t SB_PIN;
-  size_t message_length;
   /* Infinite loop */
   for(;;)
   {
@@ -438,35 +399,21 @@ void SBR2_RUN(void *argument)
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
    osDelay(1000);//?????			
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-/*--------------------------------Forming output--------------------------------------*/		
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
-   Output.method=Method_GET;
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+/*--------------------------------Forming output--------------------------------------*/
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
-   Output.Seatbelt_position=Input.Seatbelt_position;	
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);	
+   Output.Seatbelt_position=Input.Seatbelt_position;
+   Output.method=Method_GET;	
+   Send_Result();
    SEND_PERIODIC_MESSAGES=false;
-   CLEAR_OUTPUT();
    xTaskNotifyStateClear(Send_periodicHandle);
   }
 }
 void SBR3_4_RUN(void *argument)
 {
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-  CanFrame ReceivedFrame;
   GPIO_TypeDef* SB_PORT;
   uint16_t SB_PIN;
-  size_t message_length;
   /* Infinite loop */
   for(;;)
   {
@@ -505,35 +452,20 @@ void SBR3_4_RUN(void *argument)
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
    osDelay(1000);			
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
 /*---------------------------Forming output-------------------------------------*/
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
-   Output.method=Method_GET;
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
-   Output.Seatbelt_position=Input.Seatbelt_position;	
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);		
+   Output.Seatbelt_position=Input.Seatbelt_position;
+   Send_Result();
    SEND_PERIODIC_MESSAGES=false;
-   CLEAR_OUTPUT();
    xTaskNotifyStateClear(Send_periodicHandle);
   }
 }
 void SBR5_RUN(void *argument)
 {	
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-  CanFrame ReceivedFrame;
   GPIO_TypeDef* SB_PORT;
   uint16_t SB_PIN,delay;
-  size_t message_length;
   /* Infinite loop */
   for(;;)
   {
@@ -577,34 +509,20 @@ void SBR5_RUN(void *argument)
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);	
    osDelay(delay);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-/*---------------------------Forming output-------------------------------------*/
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;			
-   Output.method=Method_GET;
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+/*---------------------------Forming output-------------------------------------*/   
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
-   Output.Seatbelt_position=Input.Seatbelt_position;	
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);		
-   CLEAR_OUTPUT();
+   Output.Seatbelt_position=Input.Seatbelt_position;
+   Send_Result();
+   SEND_PERIODIC_MESSAGES=false;   
    xTaskNotifyStateClear(Send_periodicHandle);
   }
 }
 void SBR6_RUN(void *argument)
 {
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-  CanFrame ReceivedFrame;
   GPIO_TypeDef* SB_PORT;
   uint16_t SB_PIN,delay;
-  size_t message_length;
   /* Infinite loop */
   for(;;)
   {
@@ -649,46 +567,25 @@ void SBR6_RUN(void *argument)
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
    osDelay(delay);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;		
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);	
    osDelay(1000);
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-/*---------------------------Forming output-------------------------------------*/   
-   Output.frame[1]=ReceivedFrame;
-   Output.frame_count++;				
-   Output.method=Method_GET;
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+/*---------------------------Forming output-------------------------------------*/   				
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
-   Output.Seatbelt_position=Input.Seatbelt_position;	
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
+   Output.Seatbelt_position=Input.Seatbelt_position;
+   Send_Result();
    SEND_PERIODIC_MESSAGES=false;
-   CLEAR_OUTPUT();
    xTaskNotifyStateClear(Send_periodicHandle);
   }
 }
 void SBR7_RUN(void *argument)
 {
 	uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-	CanFrame ReceivedFrame;
 	GPIO_TypeDef* SB_PORT;
 	uint16_t SB_PIN;
-	size_t message_length;
   /* Infinite loop */
   for(;;)
   {
@@ -697,7 +594,7 @@ void SBR7_RUN(void *argument)
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
    SEND_PERIODIC_MESSAGES=true;
-/*------------------------------Select door--------------------------*/	  
+/*------------------------------Select seatbelt--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
 	SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -729,33 +626,17 @@ void SBR7_RUN(void *argument)
    osDelay(1000);	
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
 /*---------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));	
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   Output.has_Seatbelt_position=Input.has_Door_position;
-   Output.Seatbelt_position=Input.Door_position;	
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));;			
+   Send_Result();
    SEND_PERIODIC_MESSAGES=false;
-   CLEAR_OUTPUT();
+   SEND_DOORSTATE=false;
    xTaskNotifyStateClear(Send_periodicHandle);
   }
 }
 void UDS1_RUN(void *argument)
 {
-  uint8_t UDS_request[3]={0x02,0x11,0x01};
+  uint8_t ECU_reset[3]={0x02,0x11,0x01};
   uint8_t UDS_response[8]={0,};
-  CanFrame ReceivedFrame;
-  size_t message_length;
   uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
@@ -763,36 +644,18 @@ void UDS1_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0; 	  
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=3;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ECU_reset);
+   store_CANframeTX(0,ECU_reset,sizeof(ECU_reset),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));  
-   Output.frame[1]=ReceivedFrame;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();
+   store_CANframeRX(1,UDS_response, RxHeader.DataLength);
+/*------------------------Forming output-------------------------------------*/		
+   Send_Result();
    memset(UDS_response,0x00,sizeof(UDS_response));   
   }
 }	
@@ -800,8 +663,6 @@ void UDS2_RUN(void *argument)
 {
   uint8_t UDS_request[6]={0x05,0x2F,0x38,0x01,0x03,0x00};
   uint8_t UDS_response[8]={0,};
-  CanFrame ReceivedFrame;
-  size_t message_length;
   uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
@@ -809,54 +670,33 @@ void UDS2_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_6;  
 //---------------------------DIAG LED ON-------------------------------------//
    if(Input.LED==UDS_LED_DIAG_LED_ON)
-   {	  
+   {     
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;   
-	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    ReceivedFrame.data.size=6;
-    memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-    Output.frame[0]=ReceivedFrame;
-    Output.frame_count++;   
+    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);    
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
        __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;				
-	ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	ReceivedFrame.data.size=ReceivedFrame.length;
-	memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-	Output.frame[1]=ReceivedFrame;
-	Output.frame_count++;
+    store_CANframeRX(1,UDS_response, sizeof(UDS_response));	
    }
 //-------------------------DIAG LED OFF-----------------------------------// 
    if(Input.LED==UDS_LED_DIAG_LED_OFF)
    {
     UDS_request[5]=0x01; 
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    ReceivedFrame.data.size=6;
-    memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-    Output.frame[0]=ReceivedFrame;
-    Output.frame_count++;
+    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
 	 __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;				
-	ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	ReceivedFrame.data.size=ReceivedFrame.length;
-	memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-	Output.frame[1]=ReceivedFrame;
-	Output.frame_count++;
+    store_CANframeRX(1,UDS_response, sizeof(UDS_response));	
    }
 //--------------------------SB LED ON-----------------------------------//
    else if(Input.LED==UDS_LED_SB_LED_ON)
@@ -864,70 +704,38 @@ void UDS2_RUN(void *argument)
     UDS_request[5]=0x00;
     UDS_request[3]=0x02;		 
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    ReceivedFrame.data.size=6;
-    memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-    Output.frame[0]=ReceivedFrame;
-    Output.frame_count++;
+    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
 	 __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;				
-	ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	ReceivedFrame.data.size=ReceivedFrame.length;
-	memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-	Output.frame[1]=ReceivedFrame;
-	Output.frame_count++;
+    store_CANframeRX(1,UDS_response, sizeof(UDS_response));	
    }
 //----------------------------SB LED OFF--------------------------//
    else if(Input.LED==UDS_LED_SB_LED_OFF)
    {
     UDS_request[5]=0x01; 
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-	ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    ReceivedFrame.data.size=6;
-    memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-    Output.frame[0]=ReceivedFrame;
-    Output.frame_count++;
+    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
 	 __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;				
-	ReceivedFrame.length=(RxHeader.DataLength)>>16;
-	ReceivedFrame.data.size=ReceivedFrame.length;
-	memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-	Output.frame[1]=ReceivedFrame;
-	Output.frame_count++;
+    store_CANframeRX(1,UDS_response, sizeof(UDS_response));	
    }	   
 //------------------------Forming output-------------------------------------//		 
-	Output.method=Method_GET;
-	pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-	len[0]=(uint8_t)message_length;
-	HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-	SEND_PERIODIC_MESSAGES=false;
-	CLEAR_OUTPUT();
-    memset(UDS_response,0x00,sizeof(UDS_response));	 
+	Send_Result();
+    memset(UDS_response,0x00,sizeof(UDS_response));   
   }
 }
 void UDS3_RUN(void *argument)
 {
  uint8_t UDS_request[3]={0x02,0x3E,0x00};
  uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
@@ -935,128 +743,97 @@ void UDS3_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);	
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;      
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
-   while(_NO_RX_FIFO1_NEW_MESSAGE)
-   {
-	__NOP();
-   }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);   
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
-  }
-}
-void UDS4_RUN(void *argument)
-{
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
- uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
- uint32_t Put_index1 =0;
-  /* Infinite loop */
-  for(;;)
-  {
-   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-   Output.testNumber=Input.testNumber;
-   Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+   store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-//--------------------------Wait 5s----------------------------------//	  
-   osDelay(4000);
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));
-   memset(UDS_response,0x00,sizeof(UDS_response));	  
-   Output.frame[1]=ReceivedFrame;
-   Output.frame_count++;
-   Output.measuredValue[0]=FDCAN1->RXF0S;
+   store_CANframeRX(1,UDS_response, sizeof(UDS_response));	   
+/*------------------------Forming output-------------------------------------*/		
+   Send_Result();		 
+  }
+}
+void UDS4a_RUN(void *argument)
+{
+ uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
+ uint8_t UDS_response[8]={0,};
+ uint32_t Put_index1,Put_index2 =0;
+  /* Infinite loop */
+  for(;;)
+  {
+   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   Output.testNumber=Input.testNumber;
+   Input.testNumber=0; 
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+   store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(1,UDS_response,sizeof(UDS_response));
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+//--------------------------Wait 10s and check new messages----------------------------------//	  
+   osDelay(10000);
+   Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
+   Output.measuredValue[0]=Put_index2-Put_index1;
    Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[1]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;  
 //---------------------------Send second frame-----------------------//		
    UDS_request[2]=0;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[2]=ReceivedFrame;
-   Output.frame_count++;
+   store_CANframeTX(2,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
     __NOP();
    }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);   
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(3,UDS_response,sizeof(UDS_response));   
 /*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
    Output.measuredValue[2]=FDCAN1->RXF0S;
    Output.measuredValue_count++;
    osDelay(1000);
    Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+   Output.measuredValue_count++;		
+   Send_Result();	 
+  }
+}
+
+void UDS4b_RUN(void *argument)
+{
+ uint8_t UDS_request[4]={0x03,0x28,0x03,0x03};
+ uint8_t UDS_response[8]={0,};
+ uint32_t Put_index1 =0;
+  /* Infinite loop */
+  for(;;)
+  {
+   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   Output.testNumber=Input.testNumber;
+   Input.testNumber=0;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;      
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+   store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(1,UDS_response, sizeof(UDS_response));	   
+/*------------------------Forming output-------------------------------------*/		
+   Send_Result();		 
   }
 }
 void UDS5_RUN(void *argument)
 {
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
+ uint8_t UDS_request[5]={0x04,0x14,0xff,0xff,0xff};
  uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
@@ -1064,199 +841,139 @@ void UDS5_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+/*читаем активные ошикби(0х09) и выводим на экран*/
+   UDS_READ_ERRORS(0x09);
+   Send_Result();
+   /*Erase_crash();----cтираем запись об аварии*/
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);            
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response); 
+   UDS_READ_ERRORS(0x09);
+   Send_Result();   
   }
+  
 }
 void UDS6_RUN(void *argument)
 {
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
+ uint8_t UDS_request[3]={0x02,0x19,0x0A};
  uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
- uint32_t Put_index1 =0;
+ uint32_t Put_index1=0,Put_index2 =0;
+ uint8_t NEW_MESSAGES_COUNT=0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+   store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response); 
+   store_CANframeRX(1,UDS_response, sizeof(UDS_response));
+   UDS_request[0]=0x30; UDS_request[1]=0x00; UDS_request[2]=0x00;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
+   store_CANframeTX(2,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+   osDelay(UDS_DELAY);
+   Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
+   if(Put_index2>Put_index1)
+    {
+      NEW_MESSAGES_COUNT=Put_index2-Put_index1;
+    }
+    else
+    {
+      NEW_MESSAGES_COUNT=0x40-Put_index1+Put_index2;
+    }
+   for(uint8_t i=0;i<NEW_MESSAGES_COUNT;i++)
+    {
+      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   	  store_CANframeRX(i+3,UDS_response,sizeof(UDS_response));
+    }
+    Send_Result();
   }
 }
 void UDS7_RUN(void *argument)
 {
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
+ uint8_t Erase_DTC[5]={0x04,0x14,0xFF,0xFF,0xFF};
+ uint8_t DIAG_OFF[3]={0x02,0x85,0x02};
  uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
+  /* ПРОВЕРЬТЕ СОПРОТИВЛЕНИЕ*/
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+/*-------------------------очистка DTC--------------------------------------*/   
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1); 
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;      
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Erase_DTC);
+   //store_CANframeTX(0,Erase_DTC,sizeof(Erase_DTC),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+   //store_CANframeRX(1,UDS_response,sizeof(RxHeader.DataLength));
+/*-------------------------отключение самодиагностики и чтение ошибок--------------------------------------*/ 
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;      
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_OFF);
+   //store_CANframeTX(2,Erase_DTC,sizeof(Erase_DTC),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   UDS_READ_ERRORS(0x09);
+   Send_Result();
+   /*вывести dtc и Warning с указанием поменять сопротивление*/
+   /*ждем сообщения что мы изменили сопротивление, считываем ошибки, отправляем*/
+   while(UARTRXcmd[0]==0){__NOP();}
+   UARTRXcmd[0]=0;
+   UDS_READ_ERRORS(0x09);
+   Send_Result();
+   /*-------------------------Включение самодиагностики,ожидание 10с. и чтение ошибок--------------------------------------*/ 
+   DIAG_OFF[2]-=1;      
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_OFF);
+   //store_CANframeTX(2,Erase_DTC,sizeof(Erase_DTC),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   osDelay(10000);
+   UDS_READ_ERRORS(0x09);
+   Send_Result();
+   		 
   }
 }
 void UDS8_RUN(void *argument)
 {
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
- uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
- uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
-   while(_NO_RX_FIFO1_NEW_MESSAGE)
-   {
-	__NOP();
-   }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+   EnterSecurityAccess();
+   Send_Result();
   }
 }
 void UDS9_RUN(void *argument)
 {
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
+ uint8_t Read_DID[4]={0x03,0x22,0xd1,0x00};
+ uint8_t Working[5]={0x04,0x2E,0xD1,0x00,0xA5};
  uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
@@ -1264,49 +981,79 @@ void UDS9_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+/*-------------------Входим в securityaccess---------------*/      
+   EnterSecurityAccess();
+/*----------------читаем DID-------------------------*/
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;      
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Read_DID);
+   store_CANframeTX(0,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
+   store_CANframeRX(1,UDS_response,RxHeader.DataLength);   
+/*------------------тест на срабатывание------------------------*/
+   while(timeX<0)
+   {		
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+   }
+   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+   time = 0;
+   while(timeX<290&&SPI_STOP_FLAG==false)
+   {
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+   }
+   Accelerometer_reset();
+   Output.measuredValue[0]=SPI_STOP_FLAG;
    Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
+/*-------------------изменение режима на working-----------------------*/
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Working);
+   store_CANframeTX(2,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(3,UDS_response,RxHeader.DataLength);
+/*------------------повторный тест на срабатывание---------------------*/
+   while(timeX<0)
+   {		
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+   }
+   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+   time = 0;
+   while(timeX<290&&SPI_STOP_FLAG==false)
+   {
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+   }
+   Accelerometer_reset();
+   Output.measuredValue[0]=SPI_STOP_FLAG;
    Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+   Send_Result();
   }
 }
 void UDS10_RUN(void *argument)
 {
- uint8_t UDS_request[4]={0x03,0x28,0x01,0x01};
+  uint8_t ECU_reset[3]={0x02,0x11,0x01};
+ uint8_t Read_DID[4]={0x03,0x22,0xE1,0x80};
  uint8_t UDS_response[8]={0,};
- CanFrame ReceivedFrame;
- size_t message_length;
+ uint8_t SB_FP_OFF[5]={0x04,0x2E,0xE1,0x80,0xFE};
  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
@@ -1314,41 +1061,96 @@ void UDS10_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;	  
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-   ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
-   ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-   ReceivedFrame.data.size=4;
-   memcpy(ReceivedFrame.data.bytes,UDS_request,sizeof(UDS_request));
-   Output.frame[0]=ReceivedFrame;
-   Output.frame_count++;
+   EnterSecurityAccess();
+/*-----------------------Read DID--------------------------------------*/      
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Read_DID);
+   store_CANframeTX(6,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-/*------------------------Forming output-------------------------------------*/
-   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-   ReceivedFrame.id=RxHeader.Identifier;				
-   ReceivedFrame.length=(RxHeader.DataLength)>>16;
-   ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,UDS_response,sizeof(UDS_response));	
-   Output.frame[3]=ReceivedFrame;
-   Output.measuredValue[2]=FDCAN1->RXF0S;
+   store_CANframeRX(7,UDS_response,RxHeader.DataLength);
+/*---------------------Отключение передней подушки---------------------*/
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;   
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Read_DID);
+   store_CANframeTX(8,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(9,UDS_response,RxHeader.DataLength);
+/*----------------------Перезапуск блока-------------------------------------*/ 
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ECU_reset);
+   store_CANframeTX(10,ECU_reset,sizeof(ECU_reset),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(11,UDS_response, RxHeader.DataLength);
+/*-----------------Тест на срабатывание--------------------------------------*/
+   while(timeX<0)
+   {		
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+   }
+   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+   time = 0;
+   while(timeX<290&&SPI_STOP_FLAG==false)
+   {
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+   }
+   Output.measuredValue[0]=SPI_STOP_FLAG;
    Output.measuredValue_count++;
-   osDelay(1000);
-   Output.measuredValue[3]=FDCAN1->RXF0S;
-   Output.measuredValue_count++;
-   Output.frame_count++;			
-   Output.method=Method_GET;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,Result,message_length,1000);
-   CLEAR_OUTPUT();		 
+/*-----------------------Read DID--------------------------------------*/  
+   Read_DID[3]+=2;   
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Read_DID);
+   store_CANframeTX(12,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(13,UDS_response,RxHeader.DataLength);
+/*-----------------------отключение РБ--------------------------------------*/  
+   Read_DID[3]+=2;   
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,SB_FP_OFF);
+   store_CANframeTX(13,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(14,UDS_response,RxHeader.DataLength);
+/*----------------------Перезапуск блока-------------------------------------*/ 
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ECU_reset);
+   store_CANframeTX(10,ECU_reset,sizeof(ECU_reset),DTOOL_to_AIRBAG.Identifier);
+   while(_NO_RX_FIFO1_NEW_MESSAGE)
+   {
+	__NOP();
+   }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(11,UDS_response, RxHeader.DataLength);
+/*------------------отправка-----------------------------------------*/
+   Send_Result();   
   }
 }
 
@@ -1383,10 +1185,9 @@ void UDS11_12_13_14_16RUN(void *argument)
            UDS_request[2]=0xC9;
            UDS_request[3]=0x57;
    }
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
    ReceivedFrame.id=DTOOL_to_AIRBAG.Identifier;				
    ReceivedFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
    ReceivedFrame.data.size=4;
@@ -1486,9 +1287,6 @@ void UDS15_RUN(void *argument)
    CLEAR_OUTPUT();		 
   }
 }
-
-
-
 
 void DIAG1_RUN(void *argument)
 {	

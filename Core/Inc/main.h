@@ -38,7 +38,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -66,6 +66,11 @@ void CLEAR_OUTPUT(void);
 void Accelerometer_reset(void);
 void UDS_READ_ERRORS(uint8_t status_byte);
 unsigned long SeedToKey(unsigned long seed,unsigned char rnd);
+void store_CANframeRX(uint8_t framenum,uint8_t* data, size_t length);
+void Send_Result(void);
+void EnterSecurityAccess(void);
+void store_CANframeTX(uint8_t framenum,uint8_t* data, size_t length,uint16_t ID);
+uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

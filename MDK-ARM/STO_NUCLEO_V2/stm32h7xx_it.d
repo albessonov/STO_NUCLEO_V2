@@ -41,4 +41,5 @@ sto_nucleo_v2\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_
 sto_nucleo_v2\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h
 sto_nucleo_v2\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
 sto_nucleo_v2\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
+sto_nucleo_v2\stm32h7xx_it.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 sto_nucleo_v2\stm32h7xx_it.o: ../Core/Inc/stm32h7xx_it.h

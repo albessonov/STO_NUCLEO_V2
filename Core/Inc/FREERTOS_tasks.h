@@ -10,11 +10,12 @@
 #define Sleeping 0
 #define EngineRunning 1
 #define _NO_RX_FIFO1_NEW_MESSAGE ((FDCAN1->RXF1S)&0x00FF0000)>>16==Put_index1
+
 /*Masks to generate key to enter security access*/
 #define Mask02 0xE94A2291 // ECUProgrammingSession
 #define Mask03 0xD2944523 // ExtendedDiagnosticSession 
-
-
+#define FIFO0 0
+#define FIFO1 1
 /*Task handling functions*/
 void vApplicationIdleHook( void );
 void Init_test_run(void *argument);
@@ -33,6 +34,10 @@ void SBR7_RUN(void *argument);
 void UDS1_RUN(void *argument);
 void UDS2_RUN(void *argument);
 void UDS3_RUN(void *argument);
+void UDS4a_RUN(void *argument);
+void UDS4b_RUN(void *argument);
+void UDS5_RUN(void *argument);
+void UDS6_RUN(void *argument);
 
 void EDR_Transmitter(void *argument);
 void DIAG1_RUN(void *argument);
@@ -55,6 +60,10 @@ extern osThreadId_t Send_periodicHandle;
 extern osThreadId_t UDS1Handle;
 extern osThreadId_t UDS2Handle;
 extern osThreadId_t UDS3Handle;
+extern osThreadId_t UDS4aHandle;
+extern osThreadId_t UDS4bHandle;
+extern osThreadId_t UDS5Handle;
+extern osThreadId_t UDS6Handle;
 
 extern osThreadId_t SBR1Handle;
 extern osThreadId_t SBR2Handle;

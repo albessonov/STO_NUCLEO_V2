@@ -167,6 +167,34 @@ const osThreadAttr_t UDS3_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+osThreadId_t UDS4aHandle;
+const osThreadAttr_t UDS4a_attributes = {
+  .name = "UDS4a",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t UDS4bHandle;
+const osThreadAttr_t UDS4b_attributes = {
+  .name = "UDS4b",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t UDS5Handle;
+const osThreadAttr_t UDS5_attributes = {
+  .name = "UDS5",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t UDS6Handle;
+const osThreadAttr_t UDS6_attributes = {
+  .name = "UDS6",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 osThreadId_t DIAG1Handle;
 const osThreadAttr_t DIAG1_attributes = {
   .name = "DIAG1",
@@ -602,6 +630,14 @@ int main(void)
   UDS2Handle = osThreadNew(UDS2_RUN, NULL, &UDS2_attributes);
 	
   UDS3Handle = osThreadNew(UDS3_RUN, NULL, &UDS3_attributes);
+  
+  UDS4aHandle = osThreadNew(UDS4a_RUN, NULL, &UDS4a_attributes);
+  
+  UDS4bHandle = osThreadNew(UDS4b_RUN, NULL, &UDS4b_attributes);
+	
+  UDS5Handle = osThreadNew(UDS5_RUN, NULL, &UDS5_attributes);
+	
+  UDS6Handle = osThreadNew(UDS6_RUN, NULL, &UDS6_attributes);
 	
   DIAG1Handle = osThreadNew(DIAG1_RUN, NULL, &DIAG1_attributes);
 
@@ -1138,9 +1174,9 @@ static uint32_t form_acc(float acceleration,bool axis)
           valL=~valL0+1;
           valH=~valH0;
 	     }
-	if(axis==X) RCOMMAND=RCOMMAND0x00;
+  if(axis==X) RCOMMAND=RCOMMAND0x00;
   else RCOMMAND=RCOMMAND0x02;		
-	B0=(RCOMMAND|(valH>>6));
+  B0=(RCOMMAND|(valH>>6));
   B1=((valH<<2)|(valL>>6));
   B2=(valL<<2);
   B3=CRC8((((uint32_t)B0)<<24)|(((uint32_t)B1)<<16)|(((uint32_t)B2)<<8));
@@ -1238,16 +1274,16 @@ static void FDCAN1_Config(void)
 
 unsigned long SeedToKey(unsigned long seed,unsigned char rnd)
  {
- unsigned int i;
- unsigned long key=seed;
- if(rnd<(255-35)) rnd+=35;
- else rnd=255;
- for(i=1;i<=rnd; i++)
- { if((key&0x80000000)!=0) key=(key<<1)^Mask03;
- else key<<=1; }
- return key;
+  unsigned int i;
+  unsigned long key=seed;
+  if(rnd<(255-35)) rnd+=35;
+  else rnd=255;
+  for(i=1;i<=rnd; i++)
+  { if((key&0x80000000)!=0) key=(key<<1)^Mask03;
+  else key<<=1; }
+  return key;
  }
-void EnterSecurityAccess(void)
+void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
 {
     uint8_t Put_index1=0;
     uint8_t ECU_response[8];
@@ -1255,21 +1291,36 @@ void EnterSecurityAccess(void)
     uint8_t Request_seed[4]={0x03,0x27,0x01,0x00};
     uint8_t Enter_key[7]={0x06,0x27,0x02,0,0,0,0};
     uint32_t seed,key;
+    CanFrame TxFrame;
     DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ExtendedSession);
+    TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
+    TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
+    TxFrame.data.size=3;
+    memcpy(TxFrame.data.bytes,ExtendedSession,sizeof(ExtendedSession));
+    Output.frame[0]=TxFrame;
+    Output.frame_count++;
     Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
       __NOP();
     }
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
+    store_CANframeRX(1,ECU_response,sizeof(ECU_response));
     DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request_seed);
+    TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
+    TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
+    TxFrame.data.size=4;
+    memcpy(TxFrame.data.bytes,Request_seed,sizeof(Request_seed));
+    Output.frame[2]=TxFrame;
+    Output.frame_count++;
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
       __NOP();
     }
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
+    store_CANframeRX(3,ECU_response,sizeof(ECU_response));
     seed=(ECU_response[3]<<24)+(ECU_response[4]<<16)+(ECU_response[5]<<8)+(ECU_response[6]);
     key=SeedToKey(seed,0);
     for(uint8_t i=0;i<4;i++)
@@ -1277,14 +1328,60 @@ void EnterSecurityAccess(void)
      Enter_key[i+3]=(uint8_t)(key>>8*(3-i));
     }
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Enter_key);
+    TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
+    TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
+    TxFrame.data.size=7;
+    memcpy(TxFrame.data.bytes,Enter_key,sizeof(Enter_key));
+    Output.frame[4]=TxFrame;
+    Output.frame_count++;
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
       __NOP();
     }
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
-}   
+    store_CANframeRX(5,ECU_response,sizeof(ECU_response));
+}
+void store_CANframeRX(uint8_t framenum,uint8_t* data, size_t length)
+{
+   CanFrame ReceivedFrame;
+   ReceivedFrame.timestamp=RxHeader.RxTimestamp;
+   ReceivedFrame.id=RxHeader.Identifier;				
+   ReceivedFrame.length=(RxHeader.DataLength)>>16;
+   ReceivedFrame.data.size=ReceivedFrame.length;
+   memcpy(ReceivedFrame.data.bytes,data,length);  
+   Output.frame[framenum]=ReceivedFrame;
+   Output.frame_count++;
+}
+void store_CANframeTX(uint8_t framenum,uint8_t* data, size_t length,uint16_t ID)
+{
+   CanFrame TxFrame;
+   TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
+   TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
+   TxFrame.data.size=TxFrame.length;
+   memcpy(TxFrame.data.bytes,data,length);
+   Output.frame[framenum]=TxFrame;
+   Output.frame_count++;
+}
+void Send_Result(void)
+{
+    uint8_t message_length;
+    Output.method=Method_GET;
+	pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
+    pb_encode(&streamwrt, TestData_fields, &Output);
+    message_length=streamwrt.bytes_written;
+	len[0]=(uint8_t)message_length;
+	HAL_UART_Transmit(&huart4,len,1,1000);
+    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+	CLEAR_OUTPUT();
+}
 /* USER CODE END 4 */
-
+uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr)
+{
+    uint8_t Put_index;
+    if(FIFOnbr==FIFO0){Put_index=((FDCAN1->RXF0S)&0x00FF0000)>>16;}
+    else              {Put_index=((FDCAN1->RXF1S)&0x00FF0000)>>16;}
+    return Put_index;    
+}
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
