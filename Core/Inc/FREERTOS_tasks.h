@@ -38,6 +38,8 @@ void UDS4a_RUN(void *argument);
 void UDS4b_RUN(void *argument);
 void UDS5_RUN(void *argument);
 void UDS6_RUN(void *argument);
+void UDS11_12_13_14_16RUN(void *argument);
+void UDS15_RUN(void *argument);
 
 void EDR_Transmitter(void *argument);
 void DIAG1_RUN(void *argument);
@@ -64,6 +66,8 @@ extern osThreadId_t UDS4aHandle;
 extern osThreadId_t UDS4bHandle;
 extern osThreadId_t UDS5Handle;
 extern osThreadId_t UDS6Handle;
+extern osThreadId_t UDS11_12_13_14_16Handle;
+extern osThreadId_t UDS15Handle;
 
 extern osThreadId_t SBR1Handle;
 extern osThreadId_t SBR2Handle;
@@ -74,7 +78,6 @@ extern osThreadId_t SBR7Handle;
 
 extern osThreadId_t EDRHandle;
 
-
 extern osThreadId_t DIAG1Handle;
 extern osThreadId_t DIAG2_3Handle;
 extern osThreadId_t DIAG4Handle;
@@ -83,6 +86,8 @@ extern osThreadId_t DIAG6Handle;
 extern osThreadId_t DIAG7_8Handle;
 extern osThreadId_t DIAG8Handle;
 extern osThreadId_t DIAG9Handle;
+
+extern osThreadId_t EDRHandle;
 //extern osThreadId_t DIAG10Handle;
 
 

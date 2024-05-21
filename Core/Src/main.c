@@ -195,6 +195,20 @@ const osThreadAttr_t UDS6_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+osThreadId_t UDS11_12_13_14_16Handle;
+const osThreadAttr_t UDS11_12_13_14_16_attributes = {
+  .name = "UDS6",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t UDS15Handle;
+const osThreadAttr_t UDS15_attributes = {
+  .name = "UDS15",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 osThreadId_t DIAG1Handle;
 const osThreadAttr_t DIAG1_attributes = {
   .name = "DIAG1",
@@ -638,6 +652,10 @@ int main(void)
   UDS5Handle = osThreadNew(UDS5_RUN, NULL, &UDS5_attributes);
 	
   UDS6Handle = osThreadNew(UDS6_RUN, NULL, &UDS6_attributes);
+ 
+  UDS11_12_13_14_16Handle = osThreadNew(UDS11_12_13_14_16RUN, NULL, &UDS11_12_13_14_16_attributes);
+  
+  UDS15Handle = osThreadNew(UDS15_RUN, NULL, &UDS15_attributes);
 	
   DIAG1Handle = osThreadNew(DIAG1_RUN, NULL, &DIAG1_attributes);
 
