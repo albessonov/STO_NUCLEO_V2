@@ -194,6 +194,27 @@ const osThreadAttr_t UDS6_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+osThreadId_t UDS8Handle;
+const osThreadAttr_t UDS8_attributes = {
+  .name = "UDS8",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t UDS9Handle;
+const osThreadAttr_t UDS9_attributes = {
+  .name = "UDS9",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t UDS10Handle;
+const osThreadAttr_t UDS10_attributes = {
+  .name = "UDS10",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 
 osThreadId_t UDS11_12_13_14_16Handle;
 const osThreadAttr_t UDS11_12_13_14_16_attributes = {
@@ -300,7 +321,7 @@ uint8_t RCOMMAND0x02=0b10100100;
 uint32_t ctr2=0;
 uint32_t ctr0=0;
 uint32_t TTF;
-volatile bool SPI_STOP_FLAG=false;
+volatile bool CRASH_OCCURED_FLAG=false;
 /*Flags which are used to track Crashdetected signal state in accelerometer tests*/
 volatile bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
 volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
@@ -385,8 +406,6 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
   uint8_t CANRxData[8]={0,};
-  static CanFrame ReceivedFrame;
-  size_t message_length;
   uint32_t measured_period;
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET)
   {
@@ -396,26 +415,13 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     if(Input.testNumber==0x11)
     {  	   			
        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
-       {  
-        ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-        ReceivedFrame.id=RxHeader.Identifier;				
-        ReceivedFrame.length=(RxHeader.DataLength)>>16;
-        ReceivedFrame.data.size=ReceivedFrame.length;
-        memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData)); 
-        Output.method=Method_GET;
-        Output.testNumber=1;
-        Output.has_accDataNumber=0; 
+       { 
+        store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
+        Output.testNumber=Input.testNumber;
+        Input.testNumber=0;           
         Output.measuredValue[0]=time;
-        Output.measuredValue_count++;	 
-        Output.frame[0]=ReceivedFrame;    
-        Output.frame_count++;				 
-        pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, 256);
-        pb_encode(&streamwrt, TestData_fields, &Output);
-        message_length=streamwrt.bytes_written;
-        len[0]=(uint8_t)message_length;
-        HAL_UART_Transmit(&huart4,len,1,1000);
-        HAL_UART_Transmit(&huart4,Result,message_length,1000);				 
-        CLEAR_OUTPUT();
+        Output.measuredValue_count++;           
+        Send_Result();
         FDCAN_DISABLE_INTERRUPTS();
        }						 
     }
@@ -425,8 +431,10 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 //-------------------------------------Select id to measure-----------------------------//		
     else if(Input.testNumber==0x12||Input.testNumber==0x13)
     {
+     Output.testNumber=Input.testNumber;
+     Output.testNumber=0;        
 	 uint32_t ID;
-	 if(Input.testNumber==0x02)
+	 if(Input.testNumber==0x12)
 	 {
 	  ID=0x653;
 	 }
@@ -444,73 +452,32 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
      }
      if(RXcounter==10)
 	 {
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-      Output.frame[0]=ReceivedFrame;
-      Output.frame_count++;
+      store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
 	 }
      if(RXcounter==20)
 	 {
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-      Output.frame[1]=ReceivedFrame;
-      Output.frame_count++;
+      store_CANframeRX(1,CANRxData,RxHeader.DataLength>>16);
 	 }
      if(RXcounter==30)
 	 {
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-      Output.frame[2]=ReceivedFrame;
-      Output.frame_count++;	 
+      store_CANframeRX(2,CANRxData,RxHeader.DataLength>>16);	 
 	 }
      if(RXcounter==40)
 	 {
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-      Output.frame[3]=ReceivedFrame;
-      Output.frame_count++;
+      store_CANframeRX(3,CANRxData,RxHeader.DataLength>>16);
      }	
 	 if(RXcounter==50)
 	 { 
       timelist[0]=timelist[5]; //костыль
       measured_period=buffer_average_value(timelist,50);
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));		 
-      Output.method=Method_GET;					
-      Output.testNumber=2;
-      Output.has_accDataNumber=0;
       Output.measuredValue[0]=measured_period;
-      Output.measuredValue_count++;						 
-      Output.frame[4]=ReceivedFrame;
-      Output.frame_count++;							   	
-      Output.testNumber=Input.testNumber;
-      Input.testNumber=0;
+      Output.measuredValue_count++;	   
       Output.has_accDataNumber=Input.has_accDataNumber;
       Output.accDataNumber=Input.accDataNumber;
-      pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-      pb_encode(&streamwrt, TestData_fields, &Output);
-      message_length=streamwrt.bytes_written;
-      len[0]=(uint8_t)message_length;
-      HAL_UART_Transmit(&huart4,len,1,1000);
-      HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
+      store_CANframeRX(4,CANRxData,RxHeader.DataLength>>16);
+      Send_Result();
       RXcounter=0;
-      Accelerometer_reset();
-      CLEAR_OUTPUT();             						 
+      Accelerometer_reset();           						 
 	 }				
     }
 /*Part which tracks state of CrashDetected signal from 0x653 frame */
@@ -519,25 +486,13 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	 if(timeX>-98&&CRASH_DETECTED_BEFORE_COLLISION_TAKEN==false)
 	 {
       HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);		 
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-      Output.frame[0]=ReceivedFrame;
-      Output.frame_count++;
+      store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
       CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
      }
      if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
      {
       HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	 
-      ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;				
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,CANRxData,sizeof(CANRxData));	
-      Output.frame[1]=ReceivedFrame;
-      Output.frame_count++;
+      store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
       CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
      }    						
 	}						 
@@ -551,7 +506,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   if(GPIO_Pin==CH4_Pin || GPIO_Pin==CH2_Pin)//
   {			
    HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
-   SPI_STOP_FLAG=true;
+   CRASH_OCCURED_FLAG=true;
    TTF=time*2;
    Output.measuredValue[0]=TTF;
    FDCAN_DISABLE_INTERRUPTS(); 		
@@ -652,6 +607,12 @@ int main(void)
   UDS5Handle = osThreadNew(UDS5_RUN, NULL, &UDS5_attributes);
 	
   UDS6Handle = osThreadNew(UDS6_RUN, NULL, &UDS6_attributes);
+  
+  UDS8Handle = osThreadNew(UDS8_RUN, NULL, &UDS8_attributes);
+  
+  UDS9Handle = osThreadNew(UDS9_RUN, NULL, &UDS9_attributes);
+  
+  UDS10Handle = osThreadNew(UDS10_RUN, NULL, &UDS10_attributes);
  
   UDS11_12_13_14_16Handle = osThreadNew(UDS11_12_13_14_16RUN, NULL, &UDS11_12_13_14_16_attributes);
   
@@ -1085,7 +1046,6 @@ void UDS_READ_ERRORS(uint8_t status_byte)
  uint8_t print_DTC[3]={0x30,0x00,0x00};
  uint32_t Put_index1,Put_index2;
  uint8_t DIAG_RESPONSE[8]={0,}; 
- CanFrame ReceivedFrame;
  uint8_t NEW_MESSAGES_COUNT;
 /*------------------------------------------Cчитывание ошибок--------------------------------------------------------*/\
     Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
@@ -1094,19 +1054,13 @@ void UDS_READ_ERRORS(uint8_t status_byte)
     osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/
 /*---------------------Получение первого DTC-----------------------*/ 
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-    ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-    ReceivedFrame.id=RxHeader.Identifier;
-    ReceivedFrame.length=(RxHeader.DataLength)>>16;
-    ReceivedFrame.data.size=ReceivedFrame.length;
-    memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));
-    Output.frame[0]=ReceivedFrame;
-    Output.frame_count++;
+    store_CANframeRX(0,DIAG_RESPONSE,RxHeader.DataLength>>16);
 /*-------------------Запрос на считывание остальных DTC-----------------------------*/
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,print_DTC);
     osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/ 
-    Put_index2=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
 /*------------------Подсчет числа сообщений-----------------------------*/
     if(Put_index2>Put_index1)
     {
@@ -1120,18 +1074,12 @@ void UDS_READ_ERRORS(uint8_t status_byte)
     for(uint8_t i=0;i<NEW_MESSAGES_COUNT;i++)
     {
       HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-   	  ReceivedFrame.timestamp=RxHeader.RxTimestamp;
-      ReceivedFrame.id=RxHeader.Identifier;
-      ReceivedFrame.length=(RxHeader.DataLength)>>16;
-      ReceivedFrame.data.size=ReceivedFrame.length;
-      memcpy(ReceivedFrame.data.bytes,DIAG_RESPONSE,sizeof(DIAG_RESPONSE));
-      Output.frame[i+1]=ReceivedFrame;
-      Output.frame_count++;
+   	  store_CANframeRX(i+1,DIAG_RESPONSE,RxHeader.DataLength>>16);
     }
 }
 void Accelerometer_reset(void)
 {
-  SPI_STOP_FLAG=false;
+  CRASH_OCCURED_FLAG=false;
   ctr0=0;
   timeX=-100.5;
   ctr2=0;
@@ -1309,30 +1257,20 @@ void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
     uint8_t Request_seed[4]={0x03,0x27,0x01,0x00};
     uint8_t Enter_key[7]={0x06,0x27,0x02,0,0,0,0};
     uint32_t seed,key;
-    CanFrame TxFrame;
     DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ExtendedSession);
-    TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    TxFrame.data.size=3;
-    memcpy(TxFrame.data.bytes,ExtendedSession,sizeof(ExtendedSession));
-    Output.frame[0]=TxFrame;
-    Output.frame_count++;
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    store_CANframeTX(0,ExtendedSession,sizeof(ExtendedSession),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
       __NOP();
     }
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
     store_CANframeRX(1,ECU_response,sizeof(ECU_response));
-    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request_seed);
-    TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    TxFrame.data.size=4;
-    memcpy(TxFrame.data.bytes,Request_seed,sizeof(Request_seed));
-    Output.frame[2]=TxFrame;
-    Output.frame_count++;
+    store_CANframeTX(2,Request_seed,sizeof(Request_seed),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
       __NOP();
@@ -1345,13 +1283,10 @@ void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
     {
      Enter_key[i+3]=(uint8_t)(key>>8*(3-i));
     }
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_7;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Enter_key);
-    TxFrame.id=DTOOL_to_AIRBAG.Identifier;				
-    TxFrame.length=(DTOOL_to_AIRBAG.DataLength)>>16;
-    TxFrame.data.size=7;
-    memcpy(TxFrame.data.bytes,Enter_key,sizeof(Enter_key));
-    Output.frame[4]=TxFrame;
-    Output.frame_count++;
+    store_CANframeTX(4,Enter_key,sizeof(Enter_key),DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
       __NOP();
