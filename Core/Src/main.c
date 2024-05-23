@@ -230,64 +230,8 @@ const osThreadAttr_t UDS15_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
-osThreadId_t DIAG1Handle;
-const osThreadAttr_t DIAG1_attributes = {
-  .name = "DIAG1",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t DIAG2_3Handle;
-const osThreadAttr_t DIAG2_3attributes = {
-  .name = "DIAG2_3",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
 
 
-osThreadId_t DIAG4Handle;
-const osThreadAttr_t DIAG4_attributes = {
-  .name = "DIAG4",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t DIAG5Handle;
-const osThreadAttr_t DIAG5_attributes = {
-  .name = "DIAG5",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t DIAG6Handle;
-const osThreadAttr_t DIAG6_attributes = {
-  .name = "DIAG6",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t DIAG7_8Handle;
-const osThreadAttr_t DIAG7_8_attributes = {
-  .name = "DIAG7",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t DIAG8Handle;
-
-osThreadId_t DIAG9Handle;
-const osThreadAttr_t DIAG9_attributes = {
-  .name = "DIAG9",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t DIAG10Handle;
-const osThreadAttr_t DIAG10_attributes = {
-  .name = "DIAG10",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
 
 osThreadId_t EDRHandle;
 const osThreadAttr_t EDR_attributes = {
@@ -329,8 +273,7 @@ volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
 extern TestData Output, Input,Debug;
 
 
-uint8_t Result[256];
-uint8_t len[1];
+uint8_t Result[512];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -618,19 +561,7 @@ int main(void)
   
   UDS15Handle = osThreadNew(UDS15_RUN, NULL, &UDS15_attributes);
 	
-  DIAG1Handle = osThreadNew(DIAG1_RUN, NULL, &DIAG1_attributes);
-
-  DIAG2_3Handle = osThreadNew(DIAG2_3_RUN, NULL, &DIAG2_3attributes);
-  
-  DIAG4Handle = osThreadNew(DIAG4_RUN, NULL, &DIAG4_attributes);
-  
-  DIAG5Handle = osThreadNew(DIAG5_RUN, NULL, &DIAG5_attributes);
-  
-  DIAG6Handle = osThreadNew(DIAG6_RUN, NULL, &DIAG6_attributes);
-
-  DIAG7_8Handle = osThreadNew(DIAG7_8_RUN, NULL, &DIAG7_8_attributes);
-   
-  DIAG9Handle = osThreadNew(DIAG9_RUN, NULL, &DIAG9_attributes);
+ 
   
   //DIAG10Handle = osThreadNew(DIAG10_RUN, NULL, &DIAG10_attributes);
   /* USER CODE BEGIN RTOS_THREADS */
@@ -1317,17 +1248,18 @@ void store_CANframeTX(uint8_t framenum,uint8_t* data, size_t length,uint16_t ID)
 }
 void Send_Result(void)
 {
-    uint8_t message_length;
+    uint8_t len[2];
+    uint16_t message_length;
     Output.method=Method_GET;
 	pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
     pb_encode(&streamwrt, TestData_fields, &Output);
     message_length=streamwrt.bytes_written;
-	len[0]=(uint8_t)message_length;
-	HAL_UART_Transmit(&huart4,len,1,1000);
+	len[0]=((message_length)>>8)&0xFF;
+    len[1]=(message_length)&0xFF;
+	HAL_UART_Transmit(&huart4,len,2,1000);
     HAL_UART_Transmit(&huart4,Result,message_length,1000);
 	CLEAR_OUTPUT();
 }
-/* USER CODE END 4 */
 uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr)
 {
     uint8_t Put_index;
@@ -1335,6 +1267,68 @@ uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr)
     else              {Put_index=((FDCAN1->RXF1S)&0x00FF0000)>>16;}
     return Put_index;    
 }
+void Send_Request(uint8_t Request_to_send)
+{
+    uint8_t ECU_reset[5]={0x02,0x11,0x01};
+    uint8_t Clear_Diagnostic_information[5]={0x04,0x14,0xFF,0xFF,0xFF};
+    uint8_t ExtendedDiagnostic[3]={0x02, 0x10, 0x02};
+    uint8_t* Request;
+    uint8_t Put_index1;
+    uint8_t UDS_response[8];
+    if(Request_to_send==ECU_RESET)
+    {
+        Request=ECU_reset;
+        DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+    }
+    else if(Request_to_send==ENTER_EXTENDED_DIAGNOSTIC)
+    {
+        Request=ExtendedDiagnostic;
+        DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+    }
+    else if(Request_to_send==CLEAR_DIAGNOSTIC_INFORMATION)
+    {
+        Request=Clear_Diagnostic_information;
+        DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+    }
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request);
+    store_CANframeTX(0,Request, DTOOL_to_AIRBAG.DataLength>>16,DTOOL_to_AIRBAG.Identifier);
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+    while(_NO_RX_FIFO1_NEW_MESSAGE){__NOP();}
+    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+    store_CANframeRX(1,UDS_response, RxHeader.DataLength>>16);    
+}
+void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
+{
+  uint8_t VIN_RESET_1[8]={0x10,0x11,0x2E,0xF1,0x90,0x00,0x00,0x00};
+  uint8_t VIN_RESET_2[8]={0x21,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+  uint8_t DIAG_RESPONSE[8]={0,};
+  uint32_t Put_index1;
+  if(VIN_to_WRITE==1)
+  {
+   VIN_RESET_1[3]=0xAA;
+   VIN_RESET_1[4]=0xAA;      
+  }
+  DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_8;
+  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
+  store_CANframeTX(0,VIN_RESET_1, 8,DTOOL_to_AIRBAG.Identifier);
+  Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+  while(_NO_RX_FIFO1_NEW_MESSAGE)
+  {
+	__NOP();
+  }
+  HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
+  store_CANframeRX(1,DIAG_RESPONSE, RxHeader.DataLength>>16);  
+  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
+  store_CANframeTX(0,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
+  VIN_RESET_2[0]+=0x01;
+  osDelay(10);
+  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
+  store_CANframeTX(0,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
+  osDelay(10);
+}
+
+
+/* USER CODE END 4 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */

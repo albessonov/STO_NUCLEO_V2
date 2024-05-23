@@ -70,7 +70,10 @@ void store_CANframeRX(uint8_t framenum,uint8_t* data, size_t length);
 void Send_Result(void);
 void EnterSecurityAccess(void);
 void store_CANframeTX(uint8_t framenum,uint8_t* data, size_t length,uint16_t ID);
+void ClearDTC(uint8_t OutputFrameStartPosition);
 uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr);
+void Send_Request(uint8_t Request_to_send);
+void Write_VIN(bool VIN_to_WRITE);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

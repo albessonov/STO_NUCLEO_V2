@@ -10,7 +10,9 @@
 #define Sleeping 0
 #define EngineRunning 1
 #define _NO_RX_FIFO1_NEW_MESSAGE ((FDCAN1->RXF1S)&0x00FF0000)>>16==Put_index1
-
+#define ECU_RESET 20
+#define ENTER_EXTENDED_DIAGNOSTIC 30
+#define CLEAR_DIAGNOSTIC_INFORMATION 50
 /*Masks to generate key to enter security access*/
 #define Mask02 0xE94A2291 // ECUProgrammingSession
 #define Mask03 0xD2944523 // ExtendedDiagnosticSession 

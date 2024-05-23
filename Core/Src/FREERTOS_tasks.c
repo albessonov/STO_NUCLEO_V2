@@ -36,8 +36,8 @@ volatile bool SEND_TESTER_PRESENT=false;
 extern volatile bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN;
 extern volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN;\
 /*массивы, отправляемые по UART*/
-extern uint8_t Result[256];
-extern uint8_t len[1];
+extern uint8_t Result[512];
+
 /*данные для тестов самодиагностики БУ*/
 
 
@@ -99,6 +99,11 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 	 xTaskNotifyGive(UDS4bHandle);
 	}
+    else if(Input.testNumber ==  0x36)
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+	 xTaskNotifyGive(UDS5Handle);
+	}
     else if(Input.testNumber ==  0x39)
     {
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
@@ -154,15 +159,61 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
      xTaskNotifyGive(SBR7Handle);					
     }
-    else if(Input.testNumber ==  0x51)
-    {		    
+    else if(Input.testNumber ==  0x51)////считываем DTC 0х09
+    {
+     Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
 	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
-	 xTaskNotifyGive(DIAG1Handle);					
+	 UDS_READ_ERRORS(0x09);
+     Send_Result();				
 	}
-    else if(Input.testNumber ==  0x52||Input.testNumber ==  0x53)
-    {		    
-	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
-	 xTaskNotifyGive(DIAG2_3Handle);					
+    else if(Input.testNumber ==  0x52)////считываем DTC 0х08
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 UDS_READ_ERRORS(0x08);
+     Send_Result();						
+	}
+    else if(Input.testNumber ==  0x53)////чистим DTC 
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION);
+     Send_Result();						
+	}
+    else if(Input.testNumber ==  0x54)////записываем VIN=0
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 Write_VIN(0);
+     Send_Result();						
+	}
+    else if(Input.testNumber ==  0x55)///записываем ненулевой VIN 
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 Write_VIN(1);
+     Send_Result();						
+	}
+    else if(Input.testNumber ==  0x56)////Перезагрузка блока 
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 Send_Request(ECU_RESET);
+     Send_Result();						
+	}
+    else if(Input.testNumber ==  0x57)////Входим в ExtendedDiagnosticSession
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 Send_Request(ENTER_EXTENDED_DIAGNOSTIC);
+     Send_Result();						
 	}
     else if(Input.testNumber ==  0x61)
     {		    
@@ -228,10 +279,11 @@ void Accelerometer1_RUN(void *argument)
 {
   /* USER CODE BEGIN Accelerometer1_RUN */
 /*Runs the accelerometer emualator, set of accelerations is depended on byte received via UART,frame forming is given in HAL_SPI_TxRxCpltCallback*/
-  size_t message_length;
   /* Infinite loop */
   for(;;)
   {
+   Output.testNumber=Input.testNumber;
+   Input.testNumber=0;
    /*if(Input.AIRBAG_OFF==true)
    {
 	Нажимаем кнопку отключения ПБ  
@@ -260,21 +312,12 @@ void Accelerometer1_RUN(void *argument)
     HAL_Delay(25);
     #endif
    }
-   Output.testNumber=Input.testNumber;
-   Input.testNumber=0;
    Output.has_accDataNumber=Input.has_accDataNumber;
    Output.accDataNumber=Input.accDataNumber;
-   pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-   pb_encode(&streamwrt, TestData_fields, &Output);
-   message_length=streamwrt.bytes_written;
-   len[0]=(uint8_t)message_length;
-   HAL_UART_Transmit(&huart4,len,1,1000);
-   HAL_UART_Transmit(&huart4,(uint8_t*)Result,message_length,1000);
+   Send_Result();
    CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
    CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
    Accelerometer_reset();
-   CLEAR_OUTPUT();
-
   }
   /* USER CODE END Accelerometer1_RUN */
 }
@@ -892,7 +935,7 @@ void UDS4b_RUN(void *argument)
 }
 void UDS5_RUN(void *argument)
 {
- uint8_t UDS_request[5]={0x04,0x14,0xff,0xff,0xff};
+ uint8_t ERASE_CRASH[5]={0x04,0x2E,0xB0,0x12,0x01};
  uint8_t UDS_response[8]={0,};
  uint32_t Put_index1 =0;
   /* Infinite loop */
@@ -906,15 +949,19 @@ void UDS5_RUN(void *argument)
    Send_Result();
    /*Erase_crash();----cтираем запись об аварии*/
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);            
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ERASE_CRASH); 
+   store_CANframeTX(2,ERASE_CRASH,sizeof(ERASE_CRASH),DTOOL_to_AIRBAG.Identifier);      
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response); 
+   store_CANframeRX(3,UDS_response, RxHeader.DataLength>>16);	
+   //ClearDTC(2);
+   Send_Request(CLEAR_DIAGNOSTIC_INFORMATION);
+   Send_Result(); 
    UDS_READ_ERRORS(0x09);
    Send_Result();   
-  }
+  }//Выводить фреймы 2 3 0 1
   
 }
 void UDS6_RUN(void *argument)
@@ -1098,8 +1145,9 @@ void UDS10_RUN(void *argument)
  uint8_t Read_DID[4]={0x03,0x22,0xE1,0x80};
  uint8_t UDS_response[8]={0,};
  uint8_t airbag_OFF[5]={0x04,0x2E,0xE1,0x80,0xFE};
- uint8_t Driver_SB_OFF[5]={0x04,0x2E,0xE1,0x80,0xFE};
+ uint8_t Driver_SB_OFF[5]={0x04,0x2E,0xE1,0x82,0xFE};
  uint32_t Put_index1 =0;
+ uint8_t DriverSafetyBeltState=0;
   /* Infinite loop */
   for(;;)
   {
@@ -1174,7 +1222,7 @@ void UDS10_RUN(void *argument)
 /*-----------------------отключение РБ--------------------------------------*/  
    Read_DID[3]+=2;   
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
-   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Driver_SB_OFF);
    store_CANframeTX(14,Read_DID,sizeof(Read_DID),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
@@ -1193,10 +1241,14 @@ void UDS10_RUN(void *argument)
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-   store_CANframeRX(17,UDS_response, RxHeader.DataLength);
+   store_CANframeRX(17,UDS_response, RxHeader.DataLength>>16);
 /*----------------------Проверка сигнала DriverDafetyBeltState-------------------------------------*/
+   osDelay(2000);//для перезагрузки блока
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, UDS_response);
-   
+   DriverSafetyBeltState=((UDS_response[0])>>2)&0xFF;
+   Output.measuredValue[1]=DriverSafetyBeltState;
+   Output.measuredValue_count++;
+   Accelerometer_reset();
 /*------------------отправка-----------------------------------------*/
    Send_Result();   
   }
@@ -1276,8 +1328,9 @@ void UDS15_RUN(void *argument)
    store_CANframeTX(0,UDS_request, sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
-	HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+	__NOP();
    }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(1,UDS_response, RxHeader.DataLength>>16);
  /*------------------Ожиднаие 5с.-----------------------*/
    osDelay(5000);
@@ -1287,237 +1340,17 @@ void UDS15_RUN(void *argument)
    store_CANframeTX(2,UDS_request, sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
-	HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+	__NOP();
    }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(3,UDS_response, RxHeader.DataLength>>16);
 /*------------------------Forming output-------------------------------------*/   
    Send_Result();
   }
 }
 
-void DIAG1_RUN(void *argument)
-{	
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);
-    Output.testNumber=Input.testNumber;
-    Input.testNumber=0;
-    osDelay(4000);
-    /*добавить чтение нормального сопротивления*/
-    UDS_READ_ERRORS(0x09);
-/*------------------------Forming output-------------------------------------*/
-    Send_Result();
-    SEND_PERIODIC_MESSAGES=false;
-    SEND_CLUSTER=false;      
-  }
-}
-void DIAG2_3_RUN(void *argument)
-{	
-  size_t message_length;
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);
-    Output.testNumber=Input.testNumber;
-    Input.testNumber=0;
-    osDelay(10000);
-    UDS_READ_ERRORS(0x09);   
-    if(Input.testNumber==0x52)//высокое напряжение
-    {
-/*-------------------Остановка отправки сообщений 0х5D7-------------------------*/
-     Input.has_vehicle_speed=false;
-     osDelay(1000);
-/*-----------------------------------------------------------------------------*/
-/*------------------------Считывание ошибок 0х09--------------------------------*/
-     UDS_READ_ERRORS(0x09);
-    }    
-/*----------------------------------------------------------------------------------*/    
-    else if(Input.testNumber==0x53)
-    {
-     xTaskNotifyGive(DIAG1Handle);//проводим тест на изменение состояний выходов пиропатронов
-    }    
-/*------------------------Forming output-------------------------------------*/
-    Output.method=Method_GET;
-    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-    len[0]=(uint8_t)message_length;
-    HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-    CLEAR_OUTPUT();
-    SEND_PERIODIC_MESSAGES=false;
-    SEND_CLUSTER=false;     
-  }  
-}
 
-void DIAG4_RUN(void *argument)
-{	
-  uint8_t VIN_RESET_1[8]={0x10,0x11,0x2E,0xF1,0x90,0x00,0x00,0x00};
-  uint8_t VIN_RESET_2[8]={0x21,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-  uint8_t DIAG_RESPONSE[8]={0,};
-  uint8_t RESTART_REQUEST[3]={0x02,0x11,0x01};
-  uint32_t Put_index1;
-  size_t message_length;
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);
-/*-----------------------------Запись VIN=0----------------------------------------*/      
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-	while((((FDCAN1->RXF1S)&0x00FF0000)>>16)<Put_index1)
-	{
-	 HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-	}
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
-    VIN_RESET_2[0]+=0x01;
-    osDelay(10);
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
-    osDelay(10);
-/*-------------------------Перезапуск БУ--------------------------------*/
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,RESTART_REQUEST);
-    osDelay(1000);
-/*---------------------------Считывание ошибок 0х09---------------------------------------*/   
-    UDS_READ_ERRORS(0x09); 
-/*--------------------------------Запись ненулевого VIN-----------------------------------*/ 
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
-	while((((FDCAN1->RXF1S)&0x00FF0000)>>16)<Put_index1)
-	{
-	 HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-	}
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
-    VIN_RESET_2[0]+=0x01;
-    VIN_RESET_2[1]=0xAA;
-    osDelay(10);
-    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
-    osDelay(1000);
-/*------------------------------------------Cчитывание ошибок 0х08--------------------------------------------------------*/
-    UDS_READ_ERRORS(0x08);
-///-----------------------------------------------------------------------------------------------------------------------------///       
-/*------------------------Forming output-------------------------------------*/
-    Output.method=Method_GET;
-    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-    len[0]=(uint8_t)message_length;
-    HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-    CLEAR_OUTPUT();
-    SEND_PERIODIC_MESSAGES=false;
-    SEND_CLUSTER=false;     
-	
-  }
-}
-void DIAG5_RUN(void *argument)
-{	
 
-  size_t message_length;
-  for(;;)
-  {
-/*------------------------------Тест на срабатывание----------------------------------*/
-   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-   SEND_PERIODIC_MESSAGES=true;
-   SEND_CLUSTER=true;
-   xTaskNotifyGive(Send_periodicHandle);      
-   while(timeX<0)
-   {		
-	HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
-    #ifdef DEBUG_MODE
-    HAL_Delay(25);
-    #endif
-   }
-   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
-   time = 0;
-   while(timeX<290&&CRASH_OCCURED_FLAG==false)
-   {
-	HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
-    #ifdef DEBUG_MODE
-    HAL_Delay(25);
-    #endif      
-   }
-/*---------------------------------Считывание ошибок 0х09---------------------------------------------------*/
-    UDS_READ_ERRORS(0x09);
-///---------------------------------------Forming output----------------------------------------------///
-    Output.method=Method_GET;
-    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-    len[0]=(uint8_t)message_length;
-    HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-    CLEAR_OUTPUT();
-    SEND_PERIODIC_MESSAGES=false;
-    SEND_CLUSTER=false;   
-  }  
-}
-void DIAG6_RUN(void *argument)
-{	
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle); 
-/*нужно отредактировать proto файл и добавить выбор сообщения, 
-которое мы перестаём отправлять*/      
-  }
-}
-void DIAG7_8_RUN(void *argument)
-{	
-  size_t message_length;
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);
-    osDelay(4000);
-    UDS_READ_ERRORS(0x09);
-///---------------------------------------Forming output----------------------------------------------///
-    Output.method=Method_GET;
-    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-    len[0]=(uint8_t)message_length;
-    HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-    CLEAR_OUTPUT();
-    SEND_PERIODIC_MESSAGES=false;
-    SEND_CLUSTER=false;         
-  }
-}
-void DIAG9_RUN(void *argument)
-{
-  size_t message_length;  
-  for(;;)
-  {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-    SEND_PERIODIC_MESSAGES=true;
-    SEND_CLUSTER=true;
-    xTaskNotifyGive(Send_periodicHandle);
-    osDelay(4000);
-    UDS_READ_ERRORS(0x08);
-///---------------------------------------Forming output----------------------------------------------///
-    Output.method=Method_GET;
-    pb_ostream_t streamwrt = pb_ostream_from_buffer(Result, sizeof(Result));
-    pb_encode(&streamwrt, TestData_fields, &Output);
-    message_length=streamwrt.bytes_written;
-    len[0]=(uint8_t)message_length;
-    HAL_UART_Transmit(&huart4,len,1,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
-    CLEAR_OUTPUT();
-    SEND_PERIODIC_MESSAGES=false;
-    SEND_CLUSTER=false;         
-  }
-}
 void EDR_Transmitter(void *argument)
 {
 	uint8_t EDR_request[4]={0x03,0x22,0xFA,0x11};
