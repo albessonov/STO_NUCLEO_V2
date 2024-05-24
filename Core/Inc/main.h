@@ -103,6 +103,9 @@ void Write_VIN(bool VIN_to_WRITE);
 #define SB_BP3_CTRL_Pin GPIO_PIN_0
 #define SB_BP3_CTRL_GPIO_Port GPIOE
 
+#define SQUIB_SW_CTRL_Pin GPIO_PIN_5
+#define SQUIB_SW_CTRL_GPIO_Port GPIOE
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

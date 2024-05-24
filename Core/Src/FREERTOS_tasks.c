@@ -215,11 +215,49 @@ void vApplicationIdleHook( void )
 	 Send_Request(ENTER_EXTENDED_DIAGNOSTIC);
      Send_Result();						
 	}
+    else if(Input.testNumber ==  0x58)////Тест на срабатывание
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 while(timeX<0)
+     {		
+	  HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);
+      #ifdef DEBUG_MODE   
+      HAL_Delay(25);
+      #endif    
+     }
+     HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+     time = 0;
+     while(timeX<290&&CRASH_OCCURED_FLAG==false)
+     {
+	  HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);
+      #ifdef DEBUG_MODE
+      HAL_Delay(25);
+      #endif
+     }
+     Output.measuredValue[0]=CRASH_OCCURED_FLAG;
+     Output.measuredValue_count++;
+     Send_Result();
+     Accelerometer_reset();     
+	}
+    else if(Input.testNumber ==  0x59)////Отправка периодических сообщений
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 //Output.testNumber=Input.testNumber;
+     Input.testNumber=0;
+     SEND_PERIODIC_MESSAGES=true;   
+     Input.has_vehicle_speed=Input.DIAG_SEND_0x5D7;
+     SEND_CLUSTER=Input.DIAG_SEND_0x4F8;
+     SEND_VEHICLE_STATE=Input.DIAG_SEND_0x350;        
+     xTaskNotifyGive(Send_periodicHandle) ;  						
+	}    
     else if(Input.testNumber ==  0x61)
     {		    
 	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 	 xTaskNotifyGive(EDRHandle);					
-	}    
+	}
+    
 	 else __NOP();
   }
  else __NOP();
@@ -284,14 +322,10 @@ void Accelerometer1_RUN(void *argument)
   {
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   /*if(Input.AIRBAG_OFF==true)
+   if(Input.AIRBAG_OFF==true)
    {
-	Нажимаем кнопку отключения ПБ  
+	HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_RESET);//Нажатие кнопки отключения ПБ переднего пассажира       
    }
-   else
-   {
-	  __NOP();
-   }*/
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    CRASH_OCCURED_FLAG=false;
    Output.measuredValue_count++;
@@ -325,7 +359,7 @@ void Send_periodic_start(void *argument)
 {
 /*Задача разблокируется при запуске любого из тестов SBR/самодиагностики,отправляемые сообщения зависят от полученной команды*/
 	uint8_t BCM_CANHS_R_04_data_ER[8]={0x70,0,0,0,0,0,0,0};	//engine running
-	uint8_t BCM_CANHS_R_04_data_S[8]={0x00,0,0,0,0,0,0,0};	//sleeping
+	uint8_t BCM_CANHS_R_04_data[8]={0x00,0,0,0,0,0,0,0};	//sleeping
 	uint8_t Vehicle_Speed_15kmh[8]={0x05,0xDC,0,0,0,0,0,0};
 	uint8_t Vehicle_Speed_40kmh[8]={0x0F,0xA0,0,0,0,0,0,0};
 	uint8_t *Speed,*VehicleState;
@@ -355,12 +389,18 @@ void Send_periodic_start(void *argument)
 /*---------------Выбор VehicleStateExtended---------------------------*/
    if(Input.VehicleStateExtended==Sleeping)
    {
-    VehicleState=BCM_CANHS_R_04_data_S;
+    BCM_CANHS_R_04_data[0]=0;//sleeping
    }
    else if(Input.VehicleStateExtended==EngineRunning)
    {
-	VehicleState=BCM_CANHS_R_04_data_ER;
+	BCM_CANHS_R_04_data[0]=0x70;//eng running
    }
+  /*------------------GenericApplicativeDiagEnable в диагностических тестах*/
+   if(Input.has_GenDiagEnable==true)
+   {
+      BCM_CANHS_R_04_data[5]|=(Input.GenDiagEnable<<4);
+   }
+   VehicleState=BCM_CANHS_R_04_data;
 /*-----------------Для теста UDS CommunicationControl 0x28----------*/
    if(SEND_TESTER_PRESENT==true)
    {

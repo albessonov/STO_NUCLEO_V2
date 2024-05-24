@@ -24,17 +24,6 @@ typedef enum _Position {
     Rear_passengerLeft = 5
 } Position;
 
-typedef enum _AIRBAG {
-    AIRBAG_Front_Airbag_Driver = 1,
-    AIRBAG_Front_Airbag_Passenger = 2,
-    AIRBAG_Side_Airbag_Driver = 3,
-    AIRBAG_Side_Airbag_Passenger = 4,
-    AIRBAG_Curtain_Airbag_Driver = 5,
-    AIRBAG_Curtain_Airbag_Passenger = 6,
-    AIRBAG_Pretensioner_Driver = 7,
-    AIRBAG_Pretensioner_Passenger = 8
-} AIRBAG;
-
 typedef enum _UDS_LED {
     UDS_LED_DIAG_LED_ON = 0,
     UDS_LED_DIAG_LED_OFF = 1,
@@ -80,8 +69,14 @@ typedef struct _TestData {
     bool vehicle_speed; /* 0-отправлять скорость  15 км/ч;1-отправлять скорость 40 км/ч */
     bool has_VehicleStateExtended;
     bool VehicleStateExtended; /* Для тестов SBR: 0-Sleeping ; 1-EngineRunning */
-    bool has_airbag;
-    AIRBAG airbag;
+    bool has_GenDiagEnable;
+    bool GenDiagEnable;
+    bool has_DIAG_SEND_0x5D7;
+    bool DIAG_SEND_0x5D7;
+    bool has_DIAG_SEND_0x350;
+    bool DIAG_SEND_0x350;
+    bool has_DIAG_SEND_0x4F8;
+    bool DIAG_SEND_0x4F8;
     bool has_Door_position;
     Position Door_position; /* 0-Водитель;1-передний пассажир;3,4-задние пассажиры */
     bool has_LED;
@@ -114,10 +109,6 @@ extern "C" {
 #define _Position_MAX Rear_passengerLeft
 #define _Position_ARRAYSIZE ((Position)(Rear_passengerLeft+1))
 
-#define _AIRBAG_MIN AIRBAG_Front_Airbag_Driver
-#define _AIRBAG_MAX AIRBAG_Pretensioner_Passenger
-#define _AIRBAG_ARRAYSIZE ((AIRBAG)(AIRBAG_Pretensioner_Passenger+1))
-
 #define _UDS_LED_MIN UDS_LED_DIAG_LED_ON
 #define _UDS_LED_MAX UDS_LED_SB_LED_OFF
 #define _UDS_LED_ARRAYSIZE ((UDS_LED)(UDS_LED_SB_LED_OFF+1))
@@ -127,7 +118,6 @@ extern "C" {
 
 #define TestData_method_ENUMTYPE Method
 #define TestData_Seatbelt_position_ENUMTYPE Position
-#define TestData_airbag_ENUMTYPE AIRBAG
 #define TestData_Door_position_ENUMTYPE Position
 #define TestData_LED_ENUMTYPE UDS_LED
 
@@ -136,11 +126,11 @@ extern "C" {
 /* Initializer values for message structs */
 #define Message_init_default                     {0, {TestData_init_default}}
 #define MCUSettings_init_default                 {_Method_MIN, false, "", false, 0, false, 0, false, 0}
-#define TestData_init_default                    {_Method_MIN, 0, false, 0, false, 0, false, 0, false, _Position_MIN, false, 0, false, 0, false, _AIRBAG_MIN, false, _Position_MIN, false, _UDS_LED_MIN, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default}}
+#define TestData_init_default                    {_Method_MIN, 0, false, 0, false, 0, false, 0, false, _Position_MIN, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, _Position_MIN, false, _UDS_LED_MIN, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default, CanFrame_init_default}}
 #define CanFrame_init_default                    {0, 0, 0, {0, {0}}}
 #define Message_init_zero                        {0, {TestData_init_zero}}
 #define MCUSettings_init_zero                    {_Method_MIN, false, "", false, 0, false, 0, false, 0}
-#define TestData_init_zero                       {_Method_MIN, 0, false, 0, false, 0, false, 0, false, _Position_MIN, false, 0, false, 0, false, _AIRBAG_MIN, false, _Position_MIN, false, _UDS_LED_MIN, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero}}
+#define TestData_init_zero                       {_Method_MIN, 0, false, 0, false, 0, false, 0, false, _Position_MIN, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, _Position_MIN, false, _UDS_LED_MIN, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero, CanFrame_init_zero}}
 #define CanFrame_init_zero                       {0, 0, 0, {0, {0}}}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -161,11 +151,14 @@ extern "C" {
 #define TestData_Seatbelt_position_tag           6
 #define TestData_vehicle_speed_tag               7
 #define TestData_VehicleStateExtended_tag        8
-#define TestData_airbag_tag                      9
-#define TestData_Door_position_tag               10
-#define TestData_LED_tag                         11
-#define TestData_measuredValue_tag               12
-#define TestData_frame_tag                       13
+#define TestData_GenDiagEnable_tag               9
+#define TestData_DIAG_SEND_0x5D7_tag             10
+#define TestData_DIAG_SEND_0x350_tag             11
+#define TestData_DIAG_SEND_0x4F8_tag             12
+#define TestData_Door_position_tag               13
+#define TestData_LED_tag                         14
+#define TestData_measuredValue_tag               15
+#define TestData_frame_tag                       16
 #define Message_testData_tag                     1
 #define Message_mcuSettings_tag                  2
 
@@ -196,13 +189,16 @@ X(a, STATIC,   OPTIONAL, BOOL,     AIRBAG_OFF,        5) \
 X(a, STATIC,   OPTIONAL, UENUM,    Seatbelt_position,   6) \
 X(a, STATIC,   OPTIONAL, BOOL,     vehicle_speed,     7) \
 X(a, STATIC,   OPTIONAL, BOOL,     VehicleStateExtended,   8) \
-X(a, STATIC,   OPTIONAL, UENUM,    airbag,            9) \
-X(a, STATIC,   OPTIONAL, UENUM,    Door_position,    10) \
-X(a, STATIC,   OPTIONAL, UENUM,    LED,              11) \
-X(a, STATIC,   REPEATED, DOUBLE,   measuredValue,    12) \
-X(a, STATIC,   REPEATED, MESSAGE,  frame,            13)
+X(a, STATIC,   OPTIONAL, BOOL,     GenDiagEnable,     9) \
+X(a, STATIC,   OPTIONAL, BOOL,     DIAG_SEND_0x5D7,  10) \
+X(a, STATIC,   OPTIONAL, BOOL,     DIAG_SEND_0x350,  11) \
+X(a, STATIC,   OPTIONAL, BOOL,     DIAG_SEND_0x4F8,  12) \
+X(a, STATIC,   OPTIONAL, UENUM,    Door_position,    13) \
+X(a, STATIC,   OPTIONAL, UENUM,    LED,              14) \
+X(a, STATIC,   REPEATED, DOUBLE,   measuredValue,    15) \
+X(a, STATIC,   REPEATED, MESSAGE,  frame,            16)
 #define TestData_CALLBACK NULL
-#define TestData_DEFAULT (const pb_byte_t*)"\x48\x01\x00"
+#define TestData_DEFAULT NULL
 #define TestData_frame_MSGTYPE CanFrame
 
 #define CanFrame_FIELDLIST(X, a) \
@@ -227,13 +223,12 @@ extern const pb_msgdesc_t CanFrame_msg;
 /* Maximum encoded size of messages (where known) */
 #define CanFrame_size                            28
 #define MCUSettings_size                         34
-#define Message_size                             727
-#define TestData_size                            724
+#define Message_size                             753
+#define TestData_size                            750
 
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
 
 #endif
-
 
