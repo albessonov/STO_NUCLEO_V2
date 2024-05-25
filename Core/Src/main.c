@@ -478,6 +478,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
    Output.measuredValue[0]=TTF;
    FDCAN_DISABLE_INTERRUPTS(); 		
   }
+  if(GPIO_Pin==POWER_GOOD_Pin)
+  {
+    time=0;
+  }
 }
 
 /* USER CODE END 0 */
@@ -514,7 +518,7 @@ int main(void)
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   FDCAN1_Config();
-	HAL_TIM_Base_Start_IT(&htim1);
+ HAL_TIM_Base_Start_IT(&htim1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -959,8 +963,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CAN_LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GREEN_LED_Pin RED_LED_Pin POWER_GOOD_Pin */
-  GPIO_InitStruct.Pin = GREEN_LED_Pin|RED_LED_Pin|POWER_GOOD_Pin;
+  /*Configure GPIO pins : GREEN_LED_Pin RED_LED_Pin  */
+  GPIO_InitStruct.Pin = GREEN_LED_Pin|RED_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -985,6 +989,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  /*Configure GPIO pins : POWER_GOOD */
+  GPIO_InitStruct.Pin = POWER_GOOD_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : YELLOW_LED_Pin */
   GPIO_InitStruct.Pin = YELLOW_LED_Pin|SB_BP3_CTRL_Pin;
@@ -996,6 +1005,9 @@ static void MX_GPIO_Init(void)
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+  
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -1010,10 +1022,10 @@ void UDS_READ_ERRORS(uint8_t status_byte)
  uint8_t DIAG_RESPONSE[8]={0,}; 
  uint8_t NEW_MESSAGES_COUNT;
 /*------------------------------------------Cчитывание ошибок--------------------------------------------------------*/\
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_request);
-    osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/
+    while(_NO_RX_FIFO1_NEW_MESSAGE){__NOP;}
 /*---------------------Получение первого DTC-----------------------*/ 
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
     store_CANframeRX(0,DIAG_RESPONSE,RxHeader.DataLength>>16);
@@ -1021,7 +1033,7 @@ void UDS_READ_ERRORS(uint8_t status_byte)
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,print_DTC);
-    osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/ 
+    HAL_Delay(UDS_DELAY);/*таймаут для приёма сообщений*/ 
     Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
 /*------------------Подсчет числа сообщений-----------------------------*/
     if(Put_index2>Put_index1)

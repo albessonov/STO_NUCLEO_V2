@@ -29,7 +29,7 @@ extern "C" {
 #define DEBUG_MODE
 
 #ifdef DEBUG_MODE
-   #define UDS_DELAY 5000
+   #define UDS_DELAY 10
 #else
    #define UDS_DELAY 100
 #endif   
@@ -89,8 +89,8 @@ void Write_VIN(bool VIN_to_WRITE);
 #define GREEN_LED_GPIO_Port GPIOB
 #define RED_LED_Pin GPIO_PIN_14
 #define RED_LED_GPIO_Port GPIOB
-#define POWER_GOOD_Pin GPIO_PIN_15
-#define POWER_GOOD_GPIO_Port GPIOB
+#define POWER_GOOD_Pin GPIO_PIN_0
+#define POWER_GOOD_GPIO_Port GPIOC
 #define SB_BP1_CTRL_Pin GPIO_PIN_6
 #define SB_BP1_CTRL_GPIO_Port GPIOG
 #define CH4_Pin GPIO_PIN_0
@@ -105,6 +105,7 @@ void Write_VIN(bool VIN_to_WRITE);
 
 #define SQUIB_SW_CTRL_Pin GPIO_PIN_5
 #define SQUIB_SW_CTRL_GPIO_Port GPIOE
+
 
 /* USER CODE BEGIN Private defines */
 
