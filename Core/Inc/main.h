@@ -21,18 +21,15 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __MAIN_H
 #define __MAIN_H
-
+#define DEBUG_MODE
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define DEBUG_MODE
-
 #ifdef DEBUG_MODE
    #define UDS_DELAY 10
 #else
    #define UDS_DELAY 100
-#endif   
+#endif
 /* Includes ------------------------------------------------------------------*/
 #include "stm32h7xx_hal.h"
 
@@ -77,35 +74,46 @@ void Write_VIN(bool VIN_to_WRITE);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define SB_FP_CTRL_Pin GPIO_PIN_4
-#define SB_FP_CTRL_GPIO_Port GPIOF
-#define SB_DR_CTRL_Pin GPIO_PIN_5
-#define SB_DR_CTRL_GPIO_Port GPIOF
-#define SB_BP2_CTRL_Pin GPIO_PIN_6
-#define SB_BP2_CTRL_GPIO_Port GPIOF
-#define CAN_LED_Pin GPIO_PIN_5
-#define CAN_LED_GPIO_Port GPIOA
-#define GREEN_LED_Pin GPIO_PIN_0
-#define GREEN_LED_GPIO_Port GPIOB
-#define RED_LED_Pin GPIO_PIN_14
-#define RED_LED_GPIO_Port GPIOB
-#define POWER_GOOD_Pin GPIO_PIN_0
-#define POWER_GOOD_GPIO_Port GPIOC
-#define SB_BP1_CTRL_Pin GPIO_PIN_6
-#define SB_BP1_CTRL_GPIO_Port GPIOG
-#define CH4_Pin GPIO_PIN_0
-#define CH4_GPIO_Port GPIOD
-#define CH2_Pin GPIO_PIN_1
-#define CH2_GPIO_Port GPIOD
-#define CH2_EXTI_IRQn EXTI1_IRQn
-#define YELLOW_LED_Pin GPIO_PIN_1
-#define YELLOW_LED_GPIO_Port GPIOE
-#define SB_BP3_CTRL_Pin GPIO_PIN_0
-#define SB_BP3_CTRL_GPIO_Port GPIOE
-
+#define SB_FP_CTRL_Pin GPIO_PIN_13
+#define SB_FP_CTRL_GPIO_Port GPIOC
+#define SB_BP2_CTRL_Pin GPIO_PIN_2
+#define SB_BP2_CTRL_GPIO_Port GPIOE
+#define SB_BP1_CTRL_Pin GPIO_PIN_3
+#define SB_BP1_CTRL_GPIO_Port GPIOE
+#define SBRS_CTRL_Pin GPIO_PIN_4
+#define SBRS_CTRL_GPIO_Port GPIOE
+#define SB_DR_CTRL_Pin GPIO_PIN_1
+#define SB_DR_CTRL_GPIO_Port GPIOE
 #define SQUIB_SW_CTRL_Pin GPIO_PIN_5
 #define SQUIB_SW_CTRL_GPIO_Port GPIOE
-
+#define SB_BP3_CTRL_Pin GPIO_PIN_0
+#define SB_BP3_CTRL_GPIO_Port GPIOE
+#define CAN_LED_Pin GPIO_PIN_10
+#define CAN_LED_GPIO_Port GPIOA
+#define POWER_GOOD_Pin GPIO_PIN_0
+#define POWER_GOOD_GPIO_Port GPIOC
+#define POWER_GOOD_EXTI_IRQn EXTI0_IRQn
+#define CH11_Pin GPIO_PIN_14
+#define CH11_GPIO_Port GPIOB
+#define CH11_EXTI_IRQn EXTI15_10_IRQn
+#define CH0_Pin GPIO_PIN_12
+#define CH0_GPIO_Port GPIOE
+#define CH0_EXTI_IRQn EXTI15_10_IRQn
+#define CH2_Pin GPIO_PIN_10
+#define CH2_GPIO_Port GPIOB
+#define CH2_EXTI_IRQn EXTI15_10_IRQn
+#define CH8_Pin GPIO_PIN_9
+#define CH8_GPIO_Port GPIOD
+#define CH8_EXTI_IRQn EXTI9_5_IRQn
+#define CH1_Pin GPIO_PIN_13
+#define CH1_GPIO_Port GPIOE
+#define CH1_EXTI_IRQn EXTI15_10_IRQn
+#define CH3_Pin GPIO_PIN_11
+#define CH3_GPIO_Port GPIOB
+#define CH3_EXTI_IRQn EXTI15_10_IRQn
+#define CH7_Pin GPIO_PIN_8
+#define CH7_GPIO_Port GPIOD
+#define CH7_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 

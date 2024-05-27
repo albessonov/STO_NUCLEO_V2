@@ -69,7 +69,6 @@ typedef enum
   GPIO_PIN_RESET = 0U,
   GPIO_PIN_SET
 } GPIO_PinState;
-
 /**
   * @}
   */

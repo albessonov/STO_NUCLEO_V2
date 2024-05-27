@@ -43,6 +43,7 @@ extern uint8_t Result[512];
 
 void vApplicationIdleHook( void )
 {
+  HAL_GPIO_WritePin(GPIOE,SB_BP3_CTRL_Pin,fastened);
   HAL_UART_Receive(&huart4,UARTRXcmd,sizeof(UARTRXcmd),1000);
 	/*Filling in the input structure using nanopb*/
   if(UARTRXcmd[0]==0x08)
@@ -242,7 +243,6 @@ void vApplicationIdleHook( void )
 	}
     else if(Input.testNumber ==  0x59)////Отправка периодических сообщений
     {
-     xTaskNotifyStateClear(Send_periodicHandle);
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
 	 //Output.testNumber=Input.testNumber;
      Input.testNumber=0;
@@ -250,7 +250,7 @@ void vApplicationIdleHook( void )
      Input.has_vehicle_speed=Input.DIAG_SEND_0x5D7;
      SEND_CLUSTER=Input.DIAG_SEND_0x4F8;
      SEND_VEHICLE_STATE=Input.DIAG_SEND_0x350;        
-     xTaskNotifyGive(Send_periodicHandle);  						
+     xTaskNotifyGive(Send_periodicHandle) ;  						
 	}    
     else if(Input.testNumber ==  0x61)
     {		    
@@ -270,8 +270,8 @@ void Init_test_run(void *argument)
   for(;;)
   {
    ulTaskNotifyTake( pdTRUE,portMAX_DELAY );
-   //time=0;
-   FDCAN_ENABLE_INTERRUPTS();//ENABLE FDCAN INTERRUPT LINE0      
+   FDCAN_ENABLE_INTERRUPTS();//ENABLE FDCAN INTERRUPT LINE0
+   time=0;		
   }
  
 }
@@ -387,20 +387,20 @@ void Send_periodic_start(void *argument)
 	 }	
    }
 /*---------------Выбор VehicleStateExtended---------------------------*/
-   /*if(Input.VehicleStateExtended==Sleeping)
+   if(Input.VehicleStateExtended==Sleeping)
    {
     BCM_CANHS_R_04_data[0]=0;//sleeping
    }
    else if(Input.VehicleStateExtended==EngineRunning)
    {
 	BCM_CANHS_R_04_data[0]=0x70;//eng running
-   }*/
+   }
   /*------------------GenericApplicativeDiagEnable в диагностических тестах*/
-  /* if(Input.has_GenDiagEnable==true)
+   if(Input.has_GenDiagEnable==true)
    {
       BCM_CANHS_R_04_data[5]|=(Input.GenDiagEnable<<4);
    }
-   VehicleState=BCM_CANHS_R_04_data;*/
+   VehicleState=BCM_CANHS_R_04_data;
 /*-----------------Для теста UDS CommunicationControl 0x28----------*/
    if(SEND_TESTER_PRESENT==true)
    {
@@ -411,31 +411,6 @@ void Send_periodic_start(void *argument)
 /*----------------------Отправка сообщений---------------------------*/
    while(SEND_PERIODIC_MESSAGES==true)
    {
-    if(Input.has_GenDiagEnable==true)
-   {
-      BCM_CANHS_R_04_data[5]=(Input.GenDiagEnable<<4);
-   }
-   VehicleState=BCM_CANHS_R_04_data;
-     if(Input.has_vehicle_speed==true)
-   {
-     if(Input.vehicle_speed==_40KMH)
-	 {
-	  Speed=Vehicle_Speed_40kmh;
-	 }	 
-	 else if(Input.vehicle_speed==_15KMH)
-	 {
-	  Speed=Vehicle_Speed_15kmh;
-	 }	
-   }
-/*---------------Выбор VehicleStateExtended---------------------------*/
-   if(Input.VehicleStateExtended==Sleeping)
-   {
-    BCM_CANHS_R_04_data[0]=0;//sleeping
-   }
-   else if(Input.VehicleStateExtended==EngineRunning)
-   {
-	BCM_CANHS_R_04_data[0]=0x70;//eng running
-   }  
      if(SEND_VEHICLE_STATE==true)
      {         
       HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BCM_CANHS_R_04,VehicleState); //0x350
@@ -1000,7 +975,7 @@ void UDS4b_RUN(void *argument)
 }
 void UDS5_RUN(void *argument)
 {
- uint8_t ERASE_CRASH[5]={0x04,0x2E,0xB0,0x12,0x01};
+ uint8_t ERASE_CRASH[5]={0x04,0x2E,0xB0,0x12,0x00};
  uint8_t UDS_response[8]={0,};
  uint32_t Put_index1 =0;
   /* Infinite loop */
@@ -1426,19 +1401,38 @@ void EDR_Transmitter(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);		
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    SEND_PERIODIC_MESSAGES=true;
+    SEND_VEHICLE_STATE=true;
+    xTaskNotifyGive(Send_periodicHandle);
+    while(timeX<0)
+    {		
+    HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+    #ifdef DEBUG_MODE
+    HAL_Delay(25);
+    #endif
+    }
+    HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
+    time = 0;
+    while(timeX<290&&CRASH_OCCURED_FLAG==false)
+    {
+     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
+     #ifdef DEBUG_MODE
+     HAL_Delay(25);
+     #endif
+    }
+    osDelay(5500);
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_request);
 	HAL_Delay(5000);
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, CANRxdata);
 	for(uint8_t i=0;i<3;i++){EDR_buffer[i]=CANRxdata[i+5];}
-	while(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1,FDCAN_RX_FIFO1)>0)
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_consequtive);
+	while(1)
 	 {
-		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_consequtive);
-		HAL_Delay(5000);
 		HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, CANRxdata);
 		RXcounter++;
 		if((RxHeader.DataLength)>>16!=8) break;
-    for(uint8_t i=1;i<=7;i++){EDR_buffer[7*RXcounter+2+i]=CANRxdata[i];}	       			
+        for(uint8_t i=1;i<=7;i++){EDR_buffer[7*RXcounter+2+i]=CANRxdata[i];}	       			
 	 }
 	for(uint8_t i=0;i<5;i++)
 	  {

@@ -60,13 +60,12 @@
 
 FDCAN_HandleTypeDef hfdcan1;
 
-RTC_HandleTypeDef hrtc;
-
 SPI_HandleTypeDef hspi3;
 
 TIM_HandleTypeDef htim1;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart7;
 
 /* Creating tasks headers */
 osThreadId_t Init_testHandle;
@@ -290,13 +289,11 @@ uint8_t Result[512];
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_FDCAN1_Init(void);
-static void MX_UART4_Init(void);
-static void MX_TIM1_Init(void);
 static void MX_SPI3_Init(void);
-static void MX_RTC_Init(void);
-void Init_test_run(void *argument);
-void CAN_2_RUN(void *argument);
-void Accelerometer1_RUN(void *argument);
+static void MX_TIM1_Init(void);
+static void MX_UART4_Init(void);
+static void MX_UART7_Init(void);
+void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 static void FDCAN1_Config(void);
@@ -376,7 +373,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   uint32_t measured_period;
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET)
   {
-   HAL_GPIO_TogglePin(RED_LED_GPIO_Port,RED_LED_Pin);
+   HAL_GPIO_TogglePin(CAN_LED_GPIO_Port,CAN_LED_Pin);
 /*implementation for the first test which measures the launching time measures and transmits the time between 
         reception of the UART command to launch test and first received CAN message*/
     if(Input.testNumber==0x11)
@@ -470,7 +467,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 /*Handles rising edge interrupt(when crash occurs)*/
-  if(GPIO_Pin==CH4_Pin || GPIO_Pin==CH2_Pin)//
+  if(GPIO_Pin==CH0_Pin || GPIO_Pin==CH2_Pin)//
   {			
    HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
    CRASH_OCCURED_FLAG=true;
@@ -480,13 +477,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
   if(GPIO_Pin==POWER_GOOD_Pin)
   {
-    time=0;
+   time=0;
   }
 }
 
 /* USER CODE END 0 */
 
-
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -512,13 +512,13 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_FDCAN1_Init();
-  MX_UART4_Init();
-  MX_TIM1_Init();
   MX_SPI3_Init();
-  MX_RTC_Init();
+  MX_TIM1_Init();
+  MX_UART4_Init();
+  MX_UART7_Init();
   /* USER CODE BEGIN 2 */
   FDCAN1_Config();
- HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -541,6 +541,7 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
+  /* creation of defaultTask */
   Init_testHandle = osThreadNew(Init_test_run, NULL, &Init_test_attributes);
 
   CAN_periodHandle = osThreadNew(CAN_2_RUN, NULL, &CAN_period_attributes);
@@ -588,10 +589,7 @@ int main(void)
   UDS11_12_13_14_16Handle = osThreadNew(UDS11_12_13_14_16RUN, NULL, &UDS11_12_13_14_16_attributes);
   
   UDS15Handle = osThreadNew(UDS15_RUN, NULL, &UDS15_attributes);
-	
- 
-  
-  //DIAG10Handle = osThreadNew(DIAG10_RUN, NULL, &DIAG10_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -615,16 +613,21 @@ int main(void)
   /* USER CODE END 3 */
 }
 
-
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-
+  /** Supply configuration update enable
+  */
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
 
- 
+  /** Configure the main internal regulator output voltage
+  */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
@@ -634,13 +637,10 @@ void SystemClock_Config(void)
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
- 
-  HAL_PWR_EnableBkUpAccess();
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
-
-  
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSE;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -677,7 +677,11 @@ void SystemClock_Config(void)
   }
 }
 
-
+/**
+  * @brief FDCAN1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_FDCAN1_Init(void)
 {
 
@@ -729,67 +733,11 @@ static void MX_FDCAN1_Init(void)
 
 }
 
-
-static void MX_RTC_Init(void)
-{
-
-  /* USER CODE BEGIN RTC_Init 0 */
-
-  /* USER CODE END RTC_Init 0 */
-
-  RTC_TimeTypeDef sTime = {0};
-  RTC_DateTypeDef sDate = {0};
-
-  /* USER CODE BEGIN RTC_Init 1 */
-
-  /* USER CODE END RTC_Init 1 */
-
-  /** Initialize RTC Only
+/**
+  * @brief SPI3 Initialization Function
+  * @param None
+  * @retval None
   */
-  hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
-  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
-  if (HAL_RTC_Init(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* USER CODE BEGIN Check_RTC_BKUP */
-
-  /* USER CODE END Check_RTC_BKUP */
-
-  /** Initialize RTC and set the Time and Date
-  */
-  sTime.Hours = 0x16;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x0;
-  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sDate.WeekDay = RTC_WEEKDAY_SATURDAY;
-  sDate.Month = RTC_MONTH_APRIL;
-  sDate.Date = 0x6;
-  sDate.Year = 0x24;
-
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
-
-}
-
-
 static void MX_SPI3_Init(void)
 {
 
@@ -831,7 +779,11 @@ static void MX_SPI3_Init(void)
 
 }
 
-
+/**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_TIM1_Init(void)
 {
 
@@ -874,7 +826,11 @@ static void MX_TIM1_Init(void)
 
 }
 
-
+/**
+  * @brief UART4 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_UART4_Init(void)
 {
 
@@ -918,7 +874,59 @@ static void MX_UART4_Init(void)
 
 }
 
+/**
+  * @brief UART7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART7_Init(void)
+{
 
+  /* USER CODE BEGIN UART7_Init 0 */
+
+  /* USER CODE END UART7_Init 0 */
+
+  /* USER CODE BEGIN UART7_Init 1 */
+
+  /* USER CODE END UART7_Init 1 */
+  huart7.Instance = UART7;
+  huart7.Init.BaudRate = 115200;
+  huart7.Init.WordLength = UART_WORDLENGTH_8B;
+  huart7.Init.StopBits = UART_STOPBITS_1;
+  huart7.Init.Parity = UART_PARITY_NONE;
+  huart7.Init.Mode = UART_MODE_TX_RX;
+  huart7.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
+  huart7.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart7.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart7.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart7.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart7, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart7, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART7_Init 2 */
+
+  /* USER CODE END UART7_Init 2 */
+
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -927,34 +935,49 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOG_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOF, SB_FP_CTRL_Pin|SB_DR_CTRL_Pin|SB_BP2_CTRL_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SB_FP_CTRL_GPIO_Port, SB_FP_CTRL_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOE, SB_BP2_CTRL_Pin|SB_BP1_CTRL_Pin|SBRS_CTRL_Pin|SB_DR_CTRL_Pin
+                          |SQUIB_SW_CTRL_Pin|SB_BP3_CTRL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CAN_LED_GPIO_Port, CAN_LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GREEN_LED_Pin|RED_LED_Pin|POWER_GOOD_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SB_BP1_CTRL_GPIO_Port, SB_BP1_CTRL_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : SB_FP_CTRL_Pin SB_DR_CTRL_Pin SB_BP2_CTRL_Pin */
-  GPIO_InitStruct.Pin = SB_FP_CTRL_Pin|SB_DR_CTRL_Pin|SB_BP2_CTRL_Pin;
+  /*Configure GPIO pin : SB_FP_CTRL_Pin */
+  GPIO_InitStruct.Pin = SB_FP_CTRL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+  HAL_GPIO_Init(SB_FP_CTRL_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : SB_BP2_CTRL_Pin SB_BP1_CTRL_Pin SB_DR_CTRL_Pin */
+  GPIO_InitStruct.Pin = SB_BP2_CTRL_Pin|SB_BP1_CTRL_Pin|SB_DR_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : SBRS_CTRL_Pin SQUIB_SW_CTRL_Pin */
+  GPIO_InitStruct.Pin = SBRS_CTRL_Pin|SQUIB_SW_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SB_BP3_CTRL_Pin */
+  GPIO_InitStruct.Pin = SB_BP3_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SB_BP3_CTRL_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CAN_LED_Pin */
   GPIO_InitStruct.Pin = CAN_LED_Pin;
@@ -963,51 +986,39 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CAN_LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GREEN_LED_Pin RED_LED_Pin  */
-  GPIO_InitStruct.Pin = GREEN_LED_Pin|RED_LED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SB_BP1_CTRL_Pin */
-  GPIO_InitStruct.Pin = SB_BP1_CTRL_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SB_BP1_CTRL_GPIO_Port, &GPIO_InitStruct);
-  
-   /*Configure GPIO pin : SQUIB_SW_CTRL_Pin */
-  GPIO_InitStruct.Pin = SQUIB_SW_CTRL_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SQUIB_SW_CTRL_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : CH4_Pin CH2_Pin */
-  GPIO_InitStruct.Pin = CH4_Pin|CH2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-  /*Configure GPIO pins : POWER_GOOD */
+  /*Configure GPIO pin : POWER_GOOD_Pin */
   GPIO_InitStruct.Pin = POWER_GOOD_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(POWER_GOOD_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : YELLOW_LED_Pin */
-  GPIO_InitStruct.Pin = YELLOW_LED_Pin|SB_BP3_CTRL_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  /*Configure GPIO pins : CH11_Pin CH2_Pin CH3_Pin */
+  GPIO_InitStruct.Pin = CH11_Pin|CH2_Pin|CH3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : CH0_Pin CH1_Pin */
+  GPIO_InitStruct.Pin = CH0_Pin|CH1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : CH8_Pin CH7_Pin */
+  GPIO_InitStruct.Pin = CH8_Pin|CH7_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-  
   HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -1022,10 +1033,10 @@ void UDS_READ_ERRORS(uint8_t status_byte)
  uint8_t DIAG_RESPONSE[8]={0,}; 
  uint8_t NEW_MESSAGES_COUNT;
 /*------------------------------------------Cчитывание ошибок--------------------------------------------------------*/\
-    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
     DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_request);
-    while(_NO_RX_FIFO1_NEW_MESSAGE){__NOP;}
+    osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/
 /*---------------------Получение первого DTC-----------------------*/ 
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
     store_CANframeRX(0,DIAG_RESPONSE,RxHeader.DataLength>>16);
@@ -1033,7 +1044,7 @@ void UDS_READ_ERRORS(uint8_t status_byte)
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,print_DTC);
-    HAL_Delay(UDS_DELAY);/*таймаут для приёма сообщений*/ 
+    osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/ 
     Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
 /*------------------Подсчет числа сообщений-----------------------------*/
     if(Put_index2>Put_index1)
@@ -1372,6 +1383,15 @@ void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
 
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM13 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
