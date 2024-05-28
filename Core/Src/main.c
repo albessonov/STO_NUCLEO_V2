@@ -380,7 +380,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     {  	   			
        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
        { 
-        store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
+        store_CANframeRX(0,CANRxData,RxHeader.DataLength);
         Output.testNumber=Input.testNumber;
         Input.testNumber=0;           
         Output.measuredValue[0]=time;
@@ -396,8 +396,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     else if(Input.testNumber==0x12||Input.testNumber==0x13)
     {
      Output.testNumber=Input.testNumber;
-     Output.testNumber=0;        
-	 uint32_t ID;
+     //Input.testNumber=0;        
+	   uint32_t ID;
 	 if(Input.testNumber==0x12)
 	 {
 	  ID=0x653;
@@ -416,19 +416,19 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
      }
      if(RXcounter==10)
 	 {
-      store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
+      store_CANframeRX(0,CANRxData,RxHeader.DataLength);
 	 }
      if(RXcounter==20)
 	 {
-      store_CANframeRX(1,CANRxData,RxHeader.DataLength>>16);
+      store_CANframeRX(1,CANRxData,RxHeader.DataLength);
 	 }
      if(RXcounter==30)
 	 {
-      store_CANframeRX(2,CANRxData,RxHeader.DataLength>>16);	 
+      store_CANframeRX(2,CANRxData,RxHeader.DataLength);	 
 	 }
      if(RXcounter==40)
 	 {
-      store_CANframeRX(3,CANRxData,RxHeader.DataLength>>16);
+      store_CANframeRX(3,CANRxData,RxHeader.DataLength);
      }	
 	 if(RXcounter==50)
 	 { 
@@ -438,7 +438,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
       Output.measuredValue_count++;	   
       Output.has_accDataNumber=Input.has_accDataNumber;
       Output.accDataNumber=Input.accDataNumber;
-      store_CANframeRX(4,CANRxData,RxHeader.DataLength>>16);
+      store_CANframeRX(4,CANRxData,RxHeader.DataLength);
       Send_Result();
       RXcounter=0;
       Accelerometer_reset();           						 
@@ -450,13 +450,13 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	 if(timeX>-98&&CRASH_DETECTED_BEFORE_COLLISION_TAKEN==false)
 	 {
       HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);		 
-      store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
+      store_CANframeRX(0,CANRxData,RxHeader.DataLength);
       CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
      }
      if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
      {
       HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	 
-      store_CANframeRX(0,CANRxData,RxHeader.DataLength>>16);
+      store_CANframeRX(0,CANRxData,RxHeader.DataLength);
       CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
      }    						
 	}						 
@@ -1033,7 +1033,7 @@ void UDS_READ_ERRORS(uint8_t status_byte)
  uint8_t DIAG_RESPONSE[8]={0,}; 
  uint8_t NEW_MESSAGES_COUNT;
 /*------------------------------------------Cчитывание ошибок--------------------------------------------------------*/\
-    Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+    Put_index1=	FDCAN_Get_FIFO_Put_index(FIFO1);
     DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_request);
     osDelay(UDS_DELAY);/*таймаут для приёма сообщений*/
@@ -1286,7 +1286,8 @@ void store_CANframeRX(uint8_t framenum,uint8_t* data, size_t length)
    ReceivedFrame.id=RxHeader.Identifier;				
    ReceivedFrame.length=(RxHeader.DataLength)>>16;
    ReceivedFrame.data.size=ReceivedFrame.length;
-   memcpy(ReceivedFrame.data.bytes,data,length);  
+   memmove((void*)ReceivedFrame.data.bytes,(const void*)data,length); 
+   //for(uint8_t i=0;i<=length;i++){ReceivedFrame.data.bytes[i]=*(data+i);}	
    Output.frame[framenum]=ReceivedFrame;
    Output.frame_count++;
 }
@@ -1345,11 +1346,11 @@ void Send_Request(uint8_t Request_to_send)
         DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
     }
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request);
-    store_CANframeTX(0,Request, DTOOL_to_AIRBAG.DataLength>>16,DTOOL_to_AIRBAG.Identifier);
+    store_CANframeTX(0,Request, DTOOL_to_AIRBAG.DataLength,DTOOL_to_AIRBAG.Identifier);
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE){__NOP();}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    store_CANframeRX(1,UDS_response, RxHeader.DataLength>>16);    
+    store_CANframeRX(1,UDS_response, RxHeader.DataLength);    
 }
 void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
 {
@@ -1371,7 +1372,7 @@ void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
 	__NOP();
   }
   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-  store_CANframeRX(1,DIAG_RESPONSE, RxHeader.DataLength>>16);  
+  store_CANframeRX(1,DIAG_RESPONSE, RxHeader.DataLength);  
   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
   store_CANframeTX(0,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
   VIN_RESET_2[0]+=0x01;

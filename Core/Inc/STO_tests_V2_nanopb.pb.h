@@ -70,7 +70,7 @@ typedef struct _TestData {
     bool has_VehicleStateExtended;
     bool VehicleStateExtended; /* Для тестов SBR: 0-Sleeping ; 1-EngineRunning */
     bool has_GenDiagEnable;
-    bool GenDiagEnable;
+    uint32_t GenDiagEnable;
     bool has_DIAG_SEND_0x5D7;
     bool DIAG_SEND_0x5D7;
     bool has_DIAG_SEND_0x350;
@@ -189,7 +189,7 @@ X(a, STATIC,   OPTIONAL, BOOL,     AIRBAG_OFF,        5) \
 X(a, STATIC,   OPTIONAL, UENUM,    Seatbelt_position,   6) \
 X(a, STATIC,   OPTIONAL, BOOL,     vehicle_speed,     7) \
 X(a, STATIC,   OPTIONAL, BOOL,     VehicleStateExtended,   8) \
-X(a, STATIC,   OPTIONAL, BOOL,     GenDiagEnable,     9) \
+X(a, STATIC,   OPTIONAL, UINT32,   GenDiagEnable,     9) \
 X(a, STATIC,   OPTIONAL, BOOL,     DIAG_SEND_0x5D7,  10) \
 X(a, STATIC,   OPTIONAL, BOOL,     DIAG_SEND_0x350,  11) \
 X(a, STATIC,   OPTIONAL, BOOL,     DIAG_SEND_0x4F8,  12) \
