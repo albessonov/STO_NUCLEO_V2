@@ -180,7 +180,7 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
-	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION);
+	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,0);
      Send_Result();						
 	}
     else if(Input.testNumber ==  0x54)////записываем VIN=0
@@ -204,7 +204,7 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
-	 Send_Request(ECU_RESET);
+	 Send_Request(ECU_RESET,0);
      Send_Result();						
 	}
     else if(Input.testNumber ==  0x57)////¬ходим в ExtendedDiagnosticSession
@@ -212,7 +212,7 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
-	 Send_Request(ENTER_EXTENDED_DIAGNOSTIC);
+	 Send_Request(ENTER_EXTENDED_DIAGNOSTIC,0);
      Send_Result();						
 	}
     else if(Input.testNumber ==  0x58)////“ест на срабатывание
@@ -360,9 +360,9 @@ void Send_periodic_start(void *argument)
 /*«адача разблокируетс€ при запуске любого из тестов SBR/самодиагностики,отправл€емые сообщени€ завис€т от полученной команды*/
 	uint8_t BCM_CANHS_R_04_data_ER[8]={0x70,0,0,0,0,0,0,0};	//engine running
 	uint8_t BCM_CANHS_R_04_data[8]={0x00,0,0,0,0,0,0,0};	//sleeping
-	uint8_t Vehicle_Speed_15kmh[8]={0x05,0xDC,0,0,0,0,0,0};
-	uint8_t Vehicle_Speed_40kmh[8]={0x0F,0xA0,0,0,0,0,0,0};
-	uint8_t *Speed;
+	uint8_t Vehicle_Speed[8]={0xDC,0x05,0,0,0,0,0,0};
+	//uint8_t Vehicle_Speed_40kmh[8]={0xA0,0x0F,0,0,0,0,0,0};
+	//uint8_t *Speed;
 	uint8_t Cluster[8]={0,0x01,0,0,0,0,0,0};
     uint8_t Tester_Present[3]={0x02,0x3E,0x00};
   /* Infinite loop */
@@ -379,11 +379,13 @@ void Send_periodic_start(void *argument)
    {
    if(Input.vehicle_speed==_40KMH)
 	 {
-	  Speed=Vehicle_Speed_40kmh;
+	  Vehicle_Speed[0]=0xA0;
+	  Vehicle_Speed[1]=0x0F;
 	 }	 
 	 else if(Input.vehicle_speed==_15KMH)
 	 {
-	  Speed=Vehicle_Speed_15kmh;
+	  Vehicle_Speed[0]=0xDC;
+	  Vehicle_Speed[1]=0x05;
 	 }	
    }
 /*---------------¬ыбор VehicleStateExtended---------------------------*/
@@ -416,7 +418,7 @@ void Send_periodic_start(void *argument)
      }
      if(Input.has_vehicle_speed==true)
      {
-	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_CANHS_R_01,Speed); //0x5D7
+	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_CANHS_R_01,Vehicle_Speed); //0x5D7
      }
      if(SEND_CLUSTER==true)
      {
@@ -798,66 +800,73 @@ void UDS2_RUN(void *argument)
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_6;  
+//-----------¬ход в диагностическую сессию и Security доступ------------------//
+   Send_Request(ENTER_EXTENDED_DIAGNOSTIC,6);
+   EnterSecurityAccess();  
 //---------------------------DIAG LED ON-------------------------------------//
    if(Input.LED==UDS_LED_DIAG_LED_ON)
-   {     
+   { 
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_6;	   
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    store_CANframeTX(8,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);    
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
        __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    store_CANframeRX(1,UDS_response, RxHeader.DataLength);	
+    store_CANframeRX(9,UDS_response, RxHeader.DataLength);	
    }
 //-------------------------DIAG LED OFF-----------------------------------// 
    if(Input.LED==UDS_LED_DIAG_LED_OFF)
    {
-    UDS_request[5]=0x01; 
+    UDS_request[5]=0x01;
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_6;	   
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    store_CANframeTX(8,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
 	 __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    store_CANframeRX(1,UDS_response, RxHeader.DataLength);	
+    store_CANframeRX(9,UDS_response, RxHeader.DataLength);	
    }
 //--------------------------SB LED ON-----------------------------------//
    else if(Input.LED==UDS_LED_SB_LED_ON)
    {
     UDS_request[5]=0x00;
     UDS_request[3]=0x02;		 
+	DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_6;
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    store_CANframeTX(8,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
 	 __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    store_CANframeRX(1,UDS_response, RxHeader.DataLength);	
+    store_CANframeRX(9,UDS_response, RxHeader.DataLength);	
    }
 //----------------------------SB LED OFF--------------------------//
    else if(Input.LED==UDS_LED_SB_LED_OFF)
    {
-    UDS_request[5]=0x01; 
+    UDS_request[5]=0x01;
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_6;	   
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
+    store_CANframeTX(8,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
 	{
 	 __NOP();
 	}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-    store_CANframeRX(1,UDS_response, RxHeader.DataLength);	
+    store_CANframeRX(9,UDS_response, RxHeader.DataLength);	
    }	   
 //------------------------Forming output-------------------------------------//		 
 	Send_Result();
     memset(UDS_response,0x00,sizeof(UDS_response));   
-  }
+  }//enter security access
 }
 void UDS3_RUN(void *argument)
 {
@@ -899,6 +908,7 @@ void UDS4a_RUN(void *argument)
    Input.testNumber=0;
    SEND_TESTER_PRESENT=true;
    xTaskNotifyGive(Send_periodicHandle);
+   FDCAN_ENABLE_INTERRUPTS();	  
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;      
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
    store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
@@ -918,6 +928,7 @@ void UDS4a_RUN(void *argument)
 //---------------------------Send second frame-----------------------//		
    UDS_request[2]=0;
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
    store_CANframeTX(2,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
@@ -934,7 +945,8 @@ void UDS4a_RUN(void *argument)
    Output.measuredValue_count++;		
    Send_Result();
    xTaskNotifyStateClear(Send_periodicHandle);
-   SEND_TESTER_PRESENT=false;   
+   SEND_TESTER_PRESENT=false;
+   FDCAN_DISABLE_INTERRUPTS();   
   }
 }
 
@@ -952,6 +964,7 @@ void UDS4b_RUN(void *argument)
    Input.testNumber=0;
    SEND_TESTER_PRESENT=true;
    xTaskNotifyGive(Send_periodicHandle);
+   FDCAN_ENABLE_INTERRUPTS();
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;      
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
@@ -970,7 +983,8 @@ void UDS4b_RUN(void *argument)
    Output.measuredValue_count++;		   
    Send_Result();
    xTaskNotifyStateClear(Send_periodicHandle);
-   SEND_TESTER_PRESENT=false;     
+   SEND_TESTER_PRESENT=false;  
+   FDCAN_DISABLE_INTERRUPTS();   
   }
 }
 void UDS5_RUN(void *argument)
@@ -997,7 +1011,7 @@ void UDS5_RUN(void *argument)
    }
    store_CANframeRX(3,UDS_response, RxHeader.DataLength);	
    //ClearDTC(2);
-   Send_Request(CLEAR_DIAGNOSTIC_INFORMATION);
+   Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,0);
    Send_Result(); 
    UDS_READ_ERRORS(0x09);
    Send_Result();   
@@ -1316,10 +1330,11 @@ void UDS11_12_13_14_16RUN(void *argument)
    }
    else if(Input.testNumber==0x3E)//SPPED
    {
-       xTaskNotifyGive(Send_periodicHandle);
        SEND_PERIODIC_MESSAGES=true;
+	   xTaskNotifyGive(Send_periodicHandle);
        UDS_request[2]=0xC9;
        UDS_request[3]=0x21;
+	   osDelay(500);
    }
    else if(Input.testNumber==0x3F)//VOLTAGE
    {
@@ -1360,7 +1375,7 @@ void UDS15_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   Put_index1=((FDCAN1->RXF1S)&0x00FF0000)>>16;
+   Put_index1= FDCAN_Get_FIFO_Put_index(FIFO1);
 /*----------------------читаем lifetimer и получаем ответ--------------------------*/	
    DTOOL_to_AIRBAG.DataLength = FDCAN_DLC_BYTES_4;      
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);

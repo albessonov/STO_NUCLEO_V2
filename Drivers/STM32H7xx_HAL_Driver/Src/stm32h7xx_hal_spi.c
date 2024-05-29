@@ -1834,8 +1834,6 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, const uint
 #if defined (__GNUC__)
   __IO uint16_t *ptxdr_16bits = (__IO uint16_t *)(&(hspi->Instance->TXDR));
 #endif /* __GNUC__ */
-
-
   if (hspi->State != HAL_SPI_STATE_READY)
   {
     return HAL_BUSY;
