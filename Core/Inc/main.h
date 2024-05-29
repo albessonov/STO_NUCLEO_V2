@@ -71,6 +71,7 @@ void ClearDTC(uint8_t OutputFrameStartPosition);
 uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr);
 void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput);
 void Write_VIN(bool VIN_to_WRITE);
+void CheckACUConfiguration(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

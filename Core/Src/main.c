@@ -1262,6 +1262,39 @@ unsigned long SeedToKey(unsigned long seed,unsigned char rnd)
   else key<<=1; }
   return key;
  }
+void CheckACUConfiguration(void)
+{
+  uint8_t READ_DID_REQUEST[4]={0x03,0x22,0xE1,0x80};
+  uint8_t WRITE_DID_REQUEST[5]={0x04,0x2E,0xE1,0x80,0xFF};
+  uint8_t READ_DID_RESPONSE[5]={0,};
+  uint32_t Put_index1;
+  while(READ_DID_REQUEST[3]<=0x82)
+  {
+/*-----------------------Read DID--------------------------------------*/      
+    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,READ_DID_REQUEST);
+    while(_NO_RX_FIFO1_NEW_MESSAGE)
+    {
+	 __NOP();
+    }
+    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, READ_DID_RESPONSE);
+/*-------------Writing did in case it doesn`t match 0xff------------------*/
+    if(READ_DID_RESPONSE[4]!=0xFF)
+    {
+	  Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+      DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+      HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,READ_DID_REQUEST);
+      while(_NO_RX_FIFO1_NEW_MESSAGE)
+      {
+	   __NOP();
+      }
+      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, READ_DID_RESPONSE);	   
+    }
+	READ_DID_REQUEST[3]++;
+	WRITE_DID_REQUEST[3]++;
+  }
+}
 void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
 {
     uint8_t Put_index1=0;

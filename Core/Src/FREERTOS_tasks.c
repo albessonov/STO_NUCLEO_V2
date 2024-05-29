@@ -330,6 +330,7 @@ void Accelerometer1_RUN(void *argument)
    CRASH_OCCURED_FLAG=false;
    Output.measuredValue_count++;
    FDCAN_ENABLE_INTERRUPTS();
+   CheckACUConfiguration();
    while(timeX<0)
    {		
     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
@@ -437,10 +438,11 @@ void SBR1_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   SEND_PERIODIC_MESSAGES=true;
 /*------------------------------Select seatbelt--------------------------*/
    if(Input.Seatbelt_position==Driver)
    {
@@ -493,10 +495,11 @@ void SBR2_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   SEND_PERIODIC_MESSAGES=true;
 /*------------------------------Select seatbelt--------------------------*/
    if(Input.Seatbelt_position==Driver)
    {
@@ -546,10 +549,11 @@ void SBR3_4_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;	  
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   SEND_PERIODIC_MESSAGES=true;
 /*------------------------------Select seatbelt--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
@@ -598,10 +602,11 @@ void SBR5_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;	
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   SEND_PERIODIC_MESSAGES=true;
 /*------------------------------Select seatbelt and timeout--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
@@ -655,10 +660,10 @@ void SBR6_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;	
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
-   Input.testNumber=0;
-   SEND_PERIODIC_MESSAGES=true;
    Input.testNumber=0;
 /*------------------------------Select seatbelt and timeout--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
@@ -718,10 +723,11 @@ void SBR7_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;	
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-   SEND_PERIODIC_MESSAGES=true;
 /*------------------------------Select seatbelt--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
@@ -1208,6 +1214,7 @@ void UDS10_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   CheckACUConfiguration();	  
    EnterSecurityAccess();
 /*-----------------------Read DID--------------------------------------*/      
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
@@ -1416,7 +1423,8 @@ void EDR_Transmitter(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	 ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
    SEND_PERIODIC_MESSAGES=true;
    SEND_VEHICLE_STATE=true;
    xTaskNotifyGive(Send_periodicHandle);
