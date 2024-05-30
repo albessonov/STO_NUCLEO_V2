@@ -102,7 +102,12 @@ const osThreadAttr_t Send_periodic_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-
+osThreadId_t SendGearLeverHandle;
+const osThreadAttr_t SendGearLever_attributes = {
+  .name = "SendGearLever",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 osThreadId_t SBR1Handle;
 const osThreadAttr_t SBR1_attributes = {
   .name = "SBR1",
@@ -141,6 +146,27 @@ const osThreadAttr_t SBR6_attributes = {
 osThreadId_t SBR7Handle;
 const osThreadAttr_t SBR7_attributes = {
   .name = "SBR7",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t SBR8Handle;
+const osThreadAttr_t SBR8_attributes = {
+  .name = "SBR8",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t SBR9Handle;
+const osThreadAttr_t SBR9_attributes = {
+  .name = "SBR9",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t SBR10Handle;
+const osThreadAttr_t SBR10_attributes = {
+  .name = "SBR10",
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -239,7 +265,7 @@ const osThreadAttr_t EDR_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01;
+FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01,TORQUE_AT_CANHS_RNr_02;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 volatile uint32_t time;
@@ -325,8 +351,8 @@ static void MX_UART7_Init(void);
 /* USER CODE BEGIN PFP */
 static void FDCAN1_Config(void);
 static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate,uint8_t size);
-static uint8_t CRC8(uint32_t SPI_data);
-static uint32_t form_acc(float acceleration,bool axis);
+//static uint8_t CRC8(uint32_t SPI_data);
+//static uint32_t form_acc(float acceleration,bool axis);
 
 /* USER CODE END PFP */
 
@@ -569,7 +595,6 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
   Init_testHandle = osThreadNew(Init_test_run, NULL, &Init_test_attributes);
 
   CAN_periodHandle = osThreadNew(CAN_2_RUN, NULL, &CAN_period_attributes);
@@ -579,7 +604,9 @@ int main(void)
   Accelerometer_periodHandle = osThreadNew(Accelerometer_period_RUN, NULL, &Accelerometer_period_attributes);
 	
   Send_periodicHandle = osThreadNew(Send_periodic_start, NULL, &Send_periodic_attributes);
-	
+  
+  SendGearLeverHandle = osThreadNew(Send_GearLever, NULL, &SendGearLever_attributes);
+  
   SBR1Handle = osThreadNew(SBR1_RUN, NULL, &SBR1_attributes);
 	
   SBR2Handle = osThreadNew(SBR2_RUN, NULL, &SBR2_attributes);
@@ -591,6 +618,12 @@ int main(void)
   SBR6Handle = osThreadNew(SBR6_RUN, NULL, &SBR6_attributes);
 	
   SBR7Handle = osThreadNew(SBR7_RUN, NULL, &SBR7_attributes);
+  
+  SBR8Handle = osThreadNew(SBR8_RUN, NULL, &SBR8_attributes);
+	
+  SBR9Handle = osThreadNew(SBR9_RUN, NULL, &SBR9_attributes);
+	
+  SBR10Handle = osThreadNew(SBR10_RUN, NULL, &SBR10_attributes);
 	
   EDRHandle = osThreadNew(EDR_Transmitter, NULL, &EDR_attributes);
 		
@@ -1112,7 +1145,7 @@ void FDCAN_ENABLE_INTERRUPTS(void)
 {
 	FDCAN1->ILE |= FDCAN_ILE_EINT0; //enable fdcan line 0 interrupt
 }
-static uint8_t CRC8(uint32_t SPI_data)
+/*static uint8_t CRC8(uint32_t SPI_data)
 {
 	uint64_t mask = MAX_UINT64_T - MAX_CRC;
 	uint64_t rem = (uint64_t)((((uint64_t)SPI_data) | (((uint64_t)CRC_SEED) << MSG_LEN)) & mask);
@@ -1132,8 +1165,8 @@ static uint8_t CRC8(uint32_t SPI_data)
 	}
 	// Return 8-bit CRC calculated
 	return (uint8_t)(rem & MAX_CRC);
-}
-static uint32_t form_acc(float acceleration,bool axis)
+}*/
+/*static uint32_t form_acc(float acceleration,bool axis)
 {
 	uint8_t valH0,valL0,valL,valH,B0,B1,B2,B3;
 	int16_t acc_val=round(20.47f*acceleration);
@@ -1161,7 +1194,7 @@ static uint32_t form_acc(float acceleration,bool axis)
   B3=CRC8((((uint32_t)B0)<<24)|(((uint32_t)B1)<<16)|(((uint32_t)B2)<<8));
 	formed_acceleration=(((uint32_t)B0)<<24)|(((uint32_t)B1)<<16)|(((uint32_t)B2)<<8)|((uint32_t)B3);
 	return formed_acceleration;
-}
+}*/
 
 static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate, uint8_t size)
 {
@@ -1248,6 +1281,17 @@ static void FDCAN1_Config(void)
   CLUSTER_CANHS_RNr_01.FDFormat = FDCAN_CLASSIC_CAN;
   CLUSTER_CANHS_RNr_01.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   CLUSTER_CANHS_RNr_01.MessageMarker = 0;
+  
+  /*Prepare TORQUE_AT_CANHS_RNr_02 Tx Header*/
+  TORQUE_AT_CANHS_RNr_02.Identifier = 0x17E;
+  TORQUE_AT_CANHS_RNr_02.IdType = FDCAN_STANDARD_ID;
+  TORQUE_AT_CANHS_RNr_02.TxFrameType = FDCAN_DATA_FRAME;
+  TORQUE_AT_CANHS_RNr_02.DataLength = FDCAN_DLC_BYTES_8;
+  TORQUE_AT_CANHS_RNr_02.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TORQUE_AT_CANHS_RNr_02.BitRateSwitch = FDCAN_BRS_OFF;
+  TORQUE_AT_CANHS_RNr_02.FDFormat = FDCAN_CLASSIC_CAN;
+  TORQUE_AT_CANHS_RNr_02.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TORQUE_AT_CANHS_RNr_02.MessageMarker = 0;
   FDCAN_DISABLE_INTERRUPTS();
 }
 

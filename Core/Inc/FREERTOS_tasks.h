@@ -25,6 +25,7 @@ void CAN_2_RUN(void *argument);
 void Accelerometer1_RUN(void *argument);
 void Accelerometer_period_RUN(void *argument);
 void Send_periodic_start(void *argument);
+void Send_GearLever(void *argument);
 
 void SBR1_RUN(void *argument);
 void SBR2_RUN(void *argument);
@@ -32,6 +33,9 @@ void SBR3_4_RUN(void *argument);
 void SBR5_RUN(void *argument);
 void SBR6_RUN(void *argument);
 void SBR7_RUN(void *argument);
+void SBR8_RUN(void *argument);
+void SBR9_RUN(void *argument);
+void SBR10_RUN(void *argument);
 
 void UDS1_RUN(void *argument);
 void UDS2_RUN(void *argument);
@@ -62,8 +66,9 @@ extern osThreadId_t Init_testHandle;
 extern osThreadId_t CAN_periodHandle;
 extern osThreadId_t Accelerometer_periodHandle;
 extern osThreadId_t Accelerometer_runHandle;
-extern osThreadId_t Send_periodicHandle;
 
+extern osThreadId_t Send_periodicHandle;
+extern osThreadId_t SendGearLeverHandle;
 extern osThreadId_t UDS1Handle;
 extern osThreadId_t UDS2Handle;
 extern osThreadId_t UDS3Handle;
@@ -83,6 +88,9 @@ extern osThreadId_t SBR3_4Handle;
 extern osThreadId_t SBR5Handle;
 extern osThreadId_t SBR6Handle;
 extern osThreadId_t SBR7Handle;
+extern osThreadId_t SBR8Handle;
+extern osThreadId_t SBR9Handle;
+extern osThreadId_t SBR10Handle;
 
 extern osThreadId_t EDRHandle;
 
