@@ -71,7 +71,7 @@ UART_HandleTypeDef huart7;
 osThreadId_t Init_testHandle;
 const osThreadAttr_t Init_test_attributes = {
   .name = "Init_test",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -81,7 +81,12 @@ const osThreadAttr_t CAN_period_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-
+osThreadId_t ValidABHandle;
+const osThreadAttr_t  ValidAB_attributes = {
+  .name = "CAN_period",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 osThreadId_t Accelerometer_runHandle;
 const osThreadAttr_t Accelerometer_run_attributes = {
   .name = "Accelerometer_run",
@@ -99,7 +104,7 @@ const osThreadAttr_t Accelerometer_period_attributes = {
 osThreadId_t Send_periodicHandle;
 const osThreadAttr_t Send_periodic_attributes = {
   .name = "Send_periodic",
-  .stack_size = 512 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 osThreadId_t SendGearLeverHandle;
@@ -236,7 +241,7 @@ const osThreadAttr_t UDS9_attributes = {
 osThreadId_t UDS10Handle;
 const osThreadAttr_t UDS10_attributes = {
   .name = "UDS10",
-  .stack_size = 512 * 4,
+  .stack_size =256* 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -244,7 +249,7 @@ const osThreadAttr_t UDS10_attributes = {
 osThreadId_t UDS11_12_13_14_16Handle;
 const osThreadAttr_t UDS11_12_13_14_16_attributes = {
   .name = "UDS6",
-  .stack_size = 512 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -270,6 +275,7 @@ FDCAN_RxHeaderTypeDef RxHeader;
 
 volatile uint32_t time;
 uint8_t UARTRXcmd[128]={0,};
+uint8_t SPI_8B_BUF[4]={0,0,0,0};
 uint32_t timelist[50]={0,};
 
 uint8_t SPI_RXbuf[4]={0,0,0,0};
@@ -346,13 +352,10 @@ static void MX_SPI3_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_UART4_Init(void);
 static void MX_UART7_Init(void);
-//void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 static void FDCAN1_Config(void);
 static uint32_t buffer_average_value(uint32_t *buffer_to_evaluate,uint8_t size);
-//static uint8_t CRC8(uint32_t SPI_data);
-//static uint32_t form_acc(float acceleration,bool axis);
 
 /* USER CODE END PFP */
 
@@ -401,24 +404,27 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
     uint32_t acceleration_32;
     if(memcmp(SPI_RXbuf,Request0x0cmd,4)==0)
     { 
-       acceleration_32=(*(acceleration_X_ptr+ctr0));
+       acceleration_32=(*(acceleration_X_ptr+ctr0));//x
        timeX+=0.5;
        SPI_resp[0]=acceleration_32>>24;
        SPI_resp[1]=acceleration_32>>16;
        SPI_resp[2]=acceleration_32>>8;
        SPI_resp[3]=acceleration_32;
        ctr0+=1;
+	   if(timeX>200||timeY>200.0){timeX=-100; timeY=-100; ctr0=0; ctr2=0;}
     }
     else if (memcmp(SPI_RXbuf,Request0x2cmd,4)==0)
     { 
-       acceleration_32=(*(acceleration_Y_ptr+ctr2));
+       acceleration_32=(*(acceleration_Y_ptr+ctr2));//y
        timeY+=0.5;
        SPI_resp[0]=acceleration_32>>24;
        SPI_resp[1]=acceleration_32>>16;
        SPI_resp[2]=acceleration_32>>8;
        SPI_resp[3]=acceleration_32;    
-       ctr2+=1;		 
+       ctr2+=1;
+       if(timeX>200||timeY>200.0){timeX=-100; timeY=-100; ctr2=0; ctr0=0;}		
     }
+	__NOP();
   }
 }
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
@@ -598,6 +604,8 @@ int main(void)
   Init_testHandle = osThreadNew(Init_test_run, NULL, &Init_test_attributes);
 
   CAN_periodHandle = osThreadNew(CAN_2_RUN, NULL, &CAN_period_attributes);
+  
+  ValidABHandle = osThreadNew(ValidAB_RUN, NULL, &CAN_period_attributes);
 
   Accelerometer_runHandle = osThreadNew(Accelerometer1_RUN, NULL, &Accelerometer_run_attributes);
 	
@@ -1312,11 +1320,11 @@ void CheckACUConfiguration(void)
   uint8_t WRITE_DID_REQUEST[5]={0x04,0x2E,0xE1,0x80,0xFF};
   uint8_t READ_DID_RESPONSE[5]={0,};
   uint32_t Put_index1;
-  while(READ_DID_REQUEST[3]<=0x82)
+  while(READ_DID_REQUEST[3]<=0x81)
   {
 /*-----------------------Read DID--------------------------------------*/      
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
-    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
+    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4; 
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,READ_DID_REQUEST);
     while(_NO_RX_FIFO1_NEW_MESSAGE)
     {
@@ -1343,10 +1351,11 @@ void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
 {
     uint8_t Put_index1=0;
     uint8_t ECU_response[8];
-    uint8_t ExtendedSession[3]={0x02,0x10,0x02};
+    uint8_t ExtendedSession[3]={0x02,0x10,0x03};
     uint8_t Request_seed[4]={0x03,0x27,0x01,0x00};
     uint8_t Enter_key[7]={0x06,0x27,0x02,0,0,0,0};
     uint32_t seed,key;
+	//for(uint8_t i=0;i<4;i++){
     DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ExtendedSession);
     store_CANframeTX(0,ExtendedSession,sizeof(ExtendedSession),DTOOL_to_AIRBAG.Identifier);
@@ -1368,6 +1377,7 @@ void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
     store_CANframeRX(3,ECU_response,sizeof(ECU_response));
     seed=(ECU_response[3]<<24)+(ECU_response[4]<<16)+(ECU_response[5]<<8)+(ECU_response[6]);
+	//key=0;
     key=SeedToKey(seed,0);
     for(uint8_t i=0;i<4;i++)
     {
@@ -1383,6 +1393,7 @@ void EnterSecurityAccess(void)//вызов этой функции заполняет frame 0-5 в Output
     }
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, ECU_response);
     store_CANframeRX(5,ECU_response,sizeof(ECU_response));
+//}
 }
 void store_CANframeRX(uint8_t framenum,uint8_t* data, size_t length)
 {
@@ -1432,6 +1443,7 @@ void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput)
     uint8_t ECU_reset[5]={0x02,0x11,0x01};
     uint8_t Clear_Diagnostic_information[5]={0x04,0x14,0xFF,0xFF,0xFF};
     uint8_t ExtendedDiagnostic[3]={0x02, 0x10, 0x02};
+	uint8_t ReturnCtrl[5]={0x04,0x2f,0x38,0x01,0x00};
     uint8_t* Request;
     uint8_t Put_index1;
     uint8_t UDS_response[8];
@@ -1448,6 +1460,11 @@ void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput)
     else if(Request_to_send==CLEAR_DIAGNOSTIC_INFORMATION)
     {
         Request=Clear_Diagnostic_information;
+        DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+    }
+	 else if(Request_to_send==RETURN_CONTROL_TO_ECU)
+    {
+        Request=ReturnCtrl;
         DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
     }
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request);
@@ -1486,8 +1503,23 @@ void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
   store_CANframeTX(0,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
   osDelay(10);
 }
-
-
+void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput)
+{
+  uint32_t Put_index1;
+  uint8_t Change_State[5]={0x04,0x2e,0xd1,0x00,Mode};
+  uint8_t Response[8];
+  DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Change_State);
+  store_CANframeTX(StartPositionInOutput,Change_State,5,DTOOL_to_AIRBAG.Identifier);
+  Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+  while(_NO_RX_FIFO1_NEW_MESSAGE)
+  {
+	__NOP();
+  }
+  HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, Response);
+  store_CANframeRX(StartPositionInOutput+1,Response, RxHeader.DataLength);  
+	
+}
 /* USER CODE END 4 */
 
 /**

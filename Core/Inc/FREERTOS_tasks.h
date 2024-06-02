@@ -13,17 +13,23 @@
 #define ECU_RESET 20
 #define ENTER_EXTENDED_DIAGNOSTIC 30
 #define CLEAR_DIAGNOSTIC_INFORMATION 50
+#define RETURN_CONTROL_TO_ECU 60
 /*Masks to generate key to enter security access*/
 #define Mask02 0xE94A2291 // ECUProgrammingSession
 #define Mask03 0xD2944523 // ExtendedDiagnosticSession 
 #define FIFO0 0
 #define FIFO1 1
+
+#define PLANT_MODE 0x5A
+#define WORKING_MODE 0xA5
 /*Task handling functions*/
 void vApplicationIdleHook( void );
 void Init_test_run(void *argument);
 void CAN_2_RUN(void *argument);
 void Accelerometer1_RUN(void *argument);
 void Accelerometer_period_RUN(void *argument);
+void ValidAB_RUN(void *argument);
+	
 void Send_periodic_start(void *argument);
 void Send_GearLever(void *argument);
 
@@ -64,6 +70,8 @@ void DIAG9_RUN(void *argument);
 /*Exported task prototypes*/
 extern osThreadId_t Init_testHandle;
 extern osThreadId_t CAN_periodHandle;
+extern osThreadId_t ValidABHandle;
+
 extern osThreadId_t Accelerometer_periodHandle;
 extern osThreadId_t Accelerometer_runHandle;
 

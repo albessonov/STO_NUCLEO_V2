@@ -72,6 +72,7 @@ uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr);
 void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput);
 void Write_VIN(bool VIN_to_WRITE);
 void CheckACUConfiguration(void);
+void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

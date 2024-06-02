@@ -134,7 +134,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32h7xx_hal.h"
-
+extern volatile uint32_t time;
 /** @addtogroup STM32H7xx_HAL_Driver
   * @{
   */
@@ -1680,7 +1680,7 @@ HAL_StatusTypeDef HAL_SPI_Transmit_IT(SPI_HandleTypeDef *hspi, const uint8_t *pD
 #endif /* USE_SPI_RELOAD_TRANSFER */
 
   /* Set the function for IT treatment */
-  if (hspi->Init.DataSize > SPI_DATASIZE_16BIT)
+  /*if (hspi->Init.DataSize > SPI_DATASIZE_16BIT)
   {
     hspi->TxISR = SPI_TxISR_32BIT;
   }
@@ -1689,9 +1689,9 @@ HAL_StatusTypeDef HAL_SPI_Transmit_IT(SPI_HandleTypeDef *hspi, const uint8_t *pD
     hspi->TxISR = SPI_TxISR_16BIT;
   }
   else
-  {
+  {*/
     hspi->TxISR = SPI_TxISR_8BIT;
-  }
+  //}
 
   /* Configure communication direction : 1Line */
   if (hspi->Init.Direction == SPI_DIRECTION_1LINE)
@@ -1830,6 +1830,7 @@ HAL_StatusTypeDef HAL_SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, ui
 HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, const uint8_t *pTxData, uint8_t *pRxData,
                                              uint16_t Size)
 {
+  time=0;
   uint32_t tmp_TxXferCount;
 #if defined (__GNUC__)
   __IO uint16_t *ptxdr_16bits = (__IO uint16_t *)(&(hspi->Instance->TXDR));
@@ -2909,27 +2910,27 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
       while (hspi->RxXferCount != 0UL)
       {
         /* Receive data in 32 Bit mode */
-        if (hspi->Init.DataSize > SPI_DATASIZE_16BIT)
+       /* if (hspi->Init.DataSize > SPI_DATASIZE_16BIT)
         {
           *((uint32_t *)hspi->pRxBuffPtr) = *((__IO uint32_t *)&hspi->Instance->RXDR);
           hspi->pRxBuffPtr += sizeof(uint32_t);
-        }
+        }*/
         /* Receive data in 16 Bit mode */
-        else if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+       /* else if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
         {
 #if defined (__GNUC__)
           *((uint16_t *)hspi->pRxBuffPtr) = *prxdr_16bits;
 #else
           *((uint16_t *)hspi->pRxBuffPtr) = *((__IO uint16_t *)&hspi->Instance->RXDR);
-#endif /* __GNUC__ */
+#endif  __GNUC__ *//*
           hspi->pRxBuffPtr += sizeof(uint16_t);
-        }
+        }*/
         /* Receive data in 8 Bit mode */
-        else
-        {
+        //else
+        //{
           *((uint8_t *)hspi->pRxBuffPtr) = *((__IO uint8_t *)&hspi->Instance->RXDR);
           hspi->pRxBuffPtr += sizeof(uint8_t);
-        }
+        //}
 
         hspi->RxXferCount--;
       }
