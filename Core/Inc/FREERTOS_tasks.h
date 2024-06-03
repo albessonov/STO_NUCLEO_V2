@@ -65,7 +65,7 @@ void DIAG6_RUN(void *argument);
 void DIAG7_8_RUN(void *argument);
 void DIAG9_RUN(void *argument);
 //void DIAG10_RUN(void *argument);
-
+void READ0X09_RUN(void *argument);
 
 /*Exported task prototypes*/
 extern osThreadId_t Init_testHandle;
@@ -112,6 +112,7 @@ extern osThreadId_t DIAG8Handle;
 extern osThreadId_t DIAG9Handle;
 
 extern osThreadId_t EDRHandle;
-//extern osThreadId_t DIAG10Handle;
+
+extern osThreadId_t READ0X09Handle;
 
 
