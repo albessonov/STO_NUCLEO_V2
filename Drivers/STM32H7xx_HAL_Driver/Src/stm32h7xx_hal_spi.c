@@ -3024,36 +3024,36 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
                                   SPI_IT_OVR | SPI_IT_FRE | SPI_IT_UDR));
 
       /* Disable the SPI DMA requests if enabled */
-      if (HAL_IS_BIT_SET(cfg1, SPI_CFG1_TXDMAEN | SPI_CFG1_RXDMAEN))
+      /*if (HAL_IS_BIT_SET(cfg1, SPI_CFG1_TXDMAEN | SPI_CFG1_RXDMAEN))
       {
-        /* Disable the SPI DMA requests */
-        CLEAR_BIT(hspi->Instance->CFG1, SPI_CFG1_TXDMAEN | SPI_CFG1_RXDMAEN);
+         Disable the SPI DMA requests */
+       /* CLEAR_BIT(hspi->Instance->CFG1, SPI_CFG1_TXDMAEN | SPI_CFG1_RXDMAEN);*/
 
         /* Abort the SPI DMA Rx channel */
-        if (hspi->hdmarx != NULL)
-        {
+        //if (hspi->hdmarx != NULL)
+        //{
           /* Set the SPI DMA Abort callback :
           will lead to call HAL_SPI_ErrorCallback() at end of DMA abort procedure */
-          hspi->hdmarx->XferAbortCallback = SPI_DMAAbortOnError;
-          if (HAL_OK != HAL_DMA_Abort_IT(hspi->hdmarx))
-          {
-            SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
-          }
-        }
+ //         hspi->hdmarx->XferAbortCallback = SPI_DMAAbortOnError;
+   //       if (HAL_OK != HAL_DMA_Abort_IT(hspi->hdmarx))
+     //     {
+       //     SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+         // }
+        //}
         /* Abort the SPI DMA Tx channel */
-        if (hspi->hdmatx != NULL)
-        {
+        //if (hspi->hdmatx != NULL)
+        //{
           /* Set the SPI DMA Abort callback :
           will lead to call HAL_SPI_ErrorCallback() at end of DMA abort procedure */
-          hspi->hdmatx->XferAbortCallback = SPI_DMAAbortOnError;
-          if (HAL_OK != HAL_DMA_Abort_IT(hspi->hdmatx))
-          {
-            SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
-          }
-        }
-      }
-      else
-      {
+          //hspi->hdmatx->XferAbortCallback = SPI_DMAAbortOnError;
+          //if (HAL_OK != HAL_DMA_Abort_IT(hspi->hdmatx))
+          //{
+            //SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+          //}
+        //}
+      //}
+      //else
+      //{
         /* Restore hspi->State to Ready */
         hspi->State = HAL_SPI_STATE_READY;
 
@@ -3063,7 +3063,7 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
 #else
         HAL_SPI_ErrorCallback(hspi);
 #endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
-      }
+      //}
     }
     return;
   }

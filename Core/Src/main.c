@@ -403,10 +403,12 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 	    break;
     }
     uint32_t acceleration_32;
-    if(memcmp(SPI_RXbuf,Request0x0cmd,4)==0&&ctr2>0)
+    if(memcmp(SPI_RXbuf,Request0x0cmd,4)==0)
     { 
        acceleration_32=(*(acceleration_X_ptr+ctr0));//x
        timeX+=0.5;
+	   if(timeX==4.5)
+	   {__NOP();}
        SPI_resp[0]=acceleration_32>>24;
        SPI_resp[1]=acceleration_32>>16;
        SPI_resp[2]=acceleration_32>>8;
@@ -509,7 +511,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
       store_CANframeRX(4,CANRxData,RxHeader.DataLength);
       Send_Result();
       RXcounter=0;
-      Accelerometer_reset();           						 
+      Accelerometer_reset();
+      FDCAN_DISABLE_INTERRUPTS();		 
 	 }				
     }
 /*Part which tracks state of CrashDetected signal from 0x653 frame */
@@ -535,10 +538,10 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 /*Handles rising edge interrupt(when crash occurs)*/
-  if(GPIO_Pin==CH0_Pin || GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin)//
+  if(GPIO_Pin==CH0_Pin )//|| GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin)//
   {			
    HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
-   CRASH_OCCURED_FLAG=true;
+//   CRASH_OCCURED_FLAG=true;
    TTF=time*2;
    Output.measuredValue[0]=TTF;
    FDCAN_DISABLE_INTERRUPTS(); 		
@@ -1476,6 +1479,7 @@ void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput)
   uint32_t Put_index1;
   uint8_t Change_State[5]={0x04,0x2e,0xd1,0x00,Mode};
   uint8_t Response[8];
+  //Send_Request(ENTER_EXTENDED_DIAGNOSTIC);
   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Change_State);
   store_CANframeTX(StartPositionInOutput,Change_State,5,DTOOL_to_AIRBAG.Identifier);

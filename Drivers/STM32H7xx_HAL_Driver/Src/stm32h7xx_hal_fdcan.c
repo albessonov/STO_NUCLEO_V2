@@ -5374,19 +5374,19 @@ void HAL_FDCAN_IRQHandler(FDCAN_HandleTypeDef *hfdcan)
   }
 
   /* Clock calibration unit interrupts management *****************************/
-  if (ClkCalibrationITs != 0U)
-  {
+ // if (ClkCalibrationITs != 0U)
+  //{
     /* Clear the Clock Calibration flags */
-    __HAL_FDCAN_CLEAR_FLAG(hfdcan, ClkCalibrationITs);
+    //__HAL_FDCAN_CLEAR_FLAG(hfdcan, ClkCalibrationITs);
 
-#if USE_HAL_FDCAN_REGISTER_CALLBACKS == 1
-    /* Call registered callback*/
-    hfdcan->ClockCalibrationCallback(hfdcan, ClkCalibrationITs);
-#else
+//#if USE_HAL_FDCAN_REGISTER_CALLBACKS == 1
+  //  /* Call registered callback*/
+    //hfdcan->ClockCalibrationCallback(hfdcan, ClkCalibrationITs);
+//#else
     /* Clock Calibration Callback */
-    HAL_FDCAN_ClockCalibrationCallback(hfdcan, ClkCalibrationITs);
-#endif /* USE_HAL_FDCAN_REGISTER_CALLBACKS */
-  }
+  //  HAL_FDCAN_ClockCalibrationCallback(hfdcan, ClkCalibrationITs);
+//#endif /* USE_HAL_FDCAN_REGISTER_CALLBACKS */
+  //}
 
   /* Tx event FIFO interrupts management **************************************/
   if (TxEventFifoITs != 0U)
@@ -5434,44 +5434,44 @@ void HAL_FDCAN_IRQHandler(FDCAN_HandleTypeDef *hfdcan)
   }
 
   /* Tx FIFO empty interrupt management ***************************************/
-  if (FDCAN_CHECK_IT_SOURCE(itsourceIE, FDCAN_IT_TX_FIFO_EMPTY) != RESET)
+  /*if (FDCAN_CHECK_IT_SOURCE(itsourceIE, FDCAN_IT_TX_FIFO_EMPTY) != RESET)
   {
     if (FDCAN_CHECK_FLAG(itflagIR, FDCAN_FLAG_TX_FIFO_EMPTY) != RESET)
-    {
+    {*/
       /* Clear the Tx FIFO empty flag */
-      __HAL_FDCAN_CLEAR_FLAG(hfdcan, FDCAN_FLAG_TX_FIFO_EMPTY);
+      //__HAL_FDCAN_CLEAR_FLAG(hfdcan, FDCAN_FLAG_TX_FIFO_EMPTY);
 
-#if USE_HAL_FDCAN_REGISTER_CALLBACKS == 1
+//#if USE_HAL_FDCAN_REGISTER_CALLBACKS == 1
       /* Call registered callback*/
-      hfdcan->TxFifoEmptyCallback(hfdcan);
-#else
+  //    hfdcan->TxFifoEmptyCallback(hfdcan);
+//#else
       /* Tx FIFO empty Callback */
-      HAL_FDCAN_TxFifoEmptyCallback(hfdcan);
-#endif /* USE_HAL_FDCAN_REGISTER_CALLBACKS */
-    }
-  }
+  //    HAL_FDCAN_TxFifoEmptyCallback(hfdcan);
+//#endif /* USE_HAL_FDCAN_REGISTER_CALLBACKS */
+  //  }
+  //}
 
   /* Transmission Complete interrupt management *******************************/
-  if (FDCAN_CHECK_IT_SOURCE(itsourceIE, FDCAN_IT_TX_COMPLETE) != RESET)
+  /*if (FDCAN_CHECK_IT_SOURCE(itsourceIE, FDCAN_IT_TX_COMPLETE) != RESET)
   {
     if (FDCAN_CHECK_FLAG(itflagIR, FDCAN_FLAG_TX_COMPLETE) != RESET)
-    {
+    {*/
       /* List of transmitted monitored buffers */
-      TransmittedBuffers = hfdcan->Instance->TXBTO;
-      TransmittedBuffers &= hfdcan->Instance->TXBTIE;
+      //TransmittedBuffers = hfdcan->Instance->TXBTO;
+      //TransmittedBuffers &= hfdcan->Instance->TXBTIE;
 
       /* Clear the Transmission Complete flag */
-      __HAL_FDCAN_CLEAR_FLAG(hfdcan, FDCAN_FLAG_TX_COMPLETE);
+      //__HAL_FDCAN_CLEAR_FLAG(hfdcan, FDCAN_FLAG_TX_COMPLETE);
 
-#if USE_HAL_FDCAN_REGISTER_CALLBACKS == 1
+//#if USE_HAL_FDCAN_REGISTER_CALLBACKS == 1
       /* Call registered callback*/
-      hfdcan->TxBufferCompleteCallback(hfdcan, TransmittedBuffers);
-#else
+  //    hfdcan->TxBufferCompleteCallback(hfdcan, TransmittedBuffers);
+//#else
       /* Transmission Complete Callback */
-      HAL_FDCAN_TxBufferCompleteCallback(hfdcan, TransmittedBuffers);
-#endif /* USE_HAL_FDCAN_REGISTER_CALLBACKS */
-    }
-  }
+  //    HAL_FDCAN_TxBufferCompleteCallback(hfdcan, TransmittedBuffers);
+//#endif /* USE_HAL_FDCAN_REGISTER_CALLBACKS */
+  //  }
+  //}
 
   /* Rx Buffer New Message interrupt management *******************************/
   if (FDCAN_CHECK_IT_SOURCE(itsourceIE, FDCAN_IT_RX_BUFFER_NEW_MESSAGE) != RESET)
