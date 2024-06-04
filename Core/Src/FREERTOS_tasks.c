@@ -48,7 +48,7 @@ extern uint8_t Result[512];
 
 void vApplicationIdleHook( void )
 {
-  HAL_GPIO_WritePin(GPIOE,SB_BP3_CTRL_Pin,fastened);
+ // HAL_GPIO_WritePin(GPIOE,SB_BP3_CTRL_Pin,fastened);
   HAL_UART_Receive(&huart4,UARTRXcmd,sizeof(UARTRXcmd),1000);
 	/*Filling in the input structure using nanopb*/
   if(UARTRXcmd[0]==0x08)
@@ -188,14 +188,18 @@ void vApplicationIdleHook( void )
     {      
 	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
      //xTaskNotifyGive(READ0X09Handle);
+	 SEND_PERIODIC_MESSAGES=true;
+	 xTaskNotifyGive(Send_periodicHandle);	
      Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
 	 UDS_READ_ERRORS(0x09);
-     Send_Result();			
+     Send_Result();		
 	}
     else if(Input.testNumber ==  0x52)////считываем DTC 0х08
     {
-     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd)); 
+	 SEND_PERIODIC_MESSAGES=true;
+	 xTaskNotifyGive(Send_periodicHandle);	
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
 	 UDS_READ_ERRORS(0x08);
@@ -209,20 +213,20 @@ void vApplicationIdleHook( void )
 	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,0);
      Send_Result();						
 	}
-    else if(Input.testNumber ==  0x54)////записываем VIN=0
-    {
-     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
-	 Output.testNumber=Input.testNumber;
-     Input.testNumber=0;        
-	 Write_VIN(0);
-     Send_Result();						
-	}
-    else if(Input.testNumber ==  0x55)///записываем ненулевой VIN 
+    else if(Input.testNumber ==  0x54)////записываем VIN!=0
     {
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
 	 Write_VIN(1);
+     Send_Result();						
+	}
+    else if(Input.testNumber ==  0x55)///записываем VIN=0 
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+	 Output.testNumber=Input.testNumber;
+     Input.testNumber=0;        
+	 Write_VIN(0);
      Send_Result();						
 	}
     else if(Input.testNumber ==  0x56)////ѕерезагрузка блока 
@@ -289,7 +293,17 @@ void vApplicationIdleHook( void )
 	 for(uint16_t i=0;i<0x7ff;i++){__NOP;}
      Send_Request(ECU_RESET,0);
      CLEAR_OUTPUT();	 
-	}      
+	}
+    else if(Input.testNumber ==  0x5B)////ѕроверка CrashDetectionOutOfOrder
+    {
+	 uint8_t CANRxData[4]={0,0,0,0};
+	 bool CrashDetectionOutOfOrder;
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd)); 
+     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
+	 CrashDetectionOutOfOrder=((CANRxData[0])&0x02)>>1;
+	 Output.measuredValue[0]=CrashDetectionOutOfOrder;
+     Send_Result();	 
+	}	
     else if(Input.testNumber ==  0x61)
     {		    
 	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
@@ -369,6 +383,7 @@ void Accelerometer_period_RUN(void *argument)
 void Accelerometer1_RUN(void *argument)
 {
   /* USER CODE BEGIN Accelerometer1_RUN */
+	uint8_t CANRxData[4];
 /*Runs the accelerometer emualator, set of accelerations is depended on byte received via UART,frame forming is given in HAL_SPI_TxRxCpltCallback*/
   /* Infinite loop */
   for(;;)
@@ -382,8 +397,9 @@ void Accelerometer1_RUN(void *argument)
    }
    CRASH_OCCURED_FLAG=false;
    Output.measuredValue_count++;
-   FDCAN_ENABLE_INTERRUPTS();
    //CheckACUConfiguration();
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	  
+   store_CANframeRX(0,CANRxData,RxHeader.DataLength);
   while(timeX<0)
    {		
     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
@@ -401,6 +417,8 @@ void Accelerometer1_RUN(void *argument)
     HAL_Delay(25);
     #endif
    }
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	  
+   store_CANframeRX(1,CANRxData,RxHeader.DataLength);
    Output.has_accDataNumber=Input.has_accDataNumber;
    Output.accDataNumber=Input.accDataNumber;
    Send_Result();
@@ -962,7 +980,7 @@ void UDS1_RUN(void *argument)
    {
 	__NOP();
    }
-	 osDelay(100);
+   HAL_Delay(100);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(1,UDS_response, RxHeader.DataLength);
 /*------------------------Forming output-------------------------------------*/		
@@ -1246,7 +1264,6 @@ void UDS5_RUN(void *argument)
 	__NOP();
    }
    store_CANframeRX(3,UDS_response, RxHeader.DataLength);	
-   //ClearDTC(2);
    Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,0);
    Send_Result(); 
    UDS_READ_ERRORS(0x09);

@@ -162,7 +162,7 @@ void SysTick_Handler (void) {
 
   if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
     /* Call tick handler */
-    xPortSysTickHandler();
+    //xPortSysTickHandler();
   }
 }
 #endif

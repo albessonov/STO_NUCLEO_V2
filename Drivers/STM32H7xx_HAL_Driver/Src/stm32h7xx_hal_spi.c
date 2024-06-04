@@ -1830,7 +1830,6 @@ HAL_StatusTypeDef HAL_SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, ui
 HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, const uint8_t *pTxData, uint8_t *pRxData,
                                              uint16_t Size)
 {
-  time=0;
   uint32_t tmp_TxXferCount;
 #if defined (__GNUC__)
   __IO uint16_t *ptxdr_16bits = (__IO uint16_t *)(&(hspi->Instance->TXDR));
@@ -1855,8 +1854,8 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, const uint
   tmp_TxXferCount   = hspi->TxXferCount;
 
   
-    hspi->RxISR     = SPI_RxISR_8BIT;
-    hspi->TxISR     = SPI_TxISR_8BIT;
+  hspi->RxISR     = SPI_RxISR_8BIT;
+  hspi->TxISR     = SPI_TxISR_8BIT;
   
 
   /* Set Full-Duplex mode */
@@ -2835,24 +2834,21 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
   uint32_t handled  = 0UL;
 
   HAL_SPI_StateTypeDef State = hspi->State;
-#if defined (__GNUC__)
-  __IO uint16_t *prxdr_16bits = (__IO uint16_t *)(&(hspi->Instance->RXDR));
-#endif /* __GNUC__ */
 
   /* SPI in SUSPEND mode  ----------------------------------------------------*/
-  if (HAL_IS_BIT_SET(itflag, SPI_FLAG_SUSP) && HAL_IS_BIT_SET(itsource, SPI_FLAG_EOT))
-  {
+  //if (HAL_IS_BIT_SET(itflag, SPI_FLAG_SUSP) && HAL_IS_BIT_SET(itsource, SPI_FLAG_EOT))
+  //{
     /* Clear the Suspend flag */
-    __HAL_SPI_CLEAR_SUSPFLAG(hspi);
+    //__HAL_SPI_CLEAR_SUSPFLAG(hspi);
 
     /* Suspend on going, Call the Suspend callback */
-#if (USE_HAL_SPI_REGISTER_CALLBACKS == 1UL)
-    hspi->SuspendCallback(hspi);
-#else
-    HAL_SPI_SuspendCallback(hspi);
-#endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
-    return;
-  }
+//#if (USE_HAL_SPI_REGISTER_CALLBACKS == 1UL)
+  //  hspi->SuspendCallback(hspi);
+//#else
+  //  HAL_SPI_SuspendCallback(hspi);
+//#endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
+  //  return;
+  //}
 
   /* SPI in mode Transmitter and Receiver ------------------------------------*/
   if (HAL_IS_BIT_CLR(trigger, SPI_FLAG_OVR) && HAL_IS_BIT_CLR(trigger, SPI_FLAG_UDR) && \
@@ -2864,20 +2860,20 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
   }
 
   /* SPI in mode Receiver ----------------------------------------------------*/
-  if (HAL_IS_BIT_CLR(trigger, SPI_FLAG_OVR) && HAL_IS_BIT_SET(trigger, SPI_FLAG_RXP) && \
+  /*if (HAL_IS_BIT_CLR(trigger, SPI_FLAG_OVR) && HAL_IS_BIT_SET(trigger, SPI_FLAG_RXP) && \
       HAL_IS_BIT_CLR(trigger, SPI_FLAG_DXP))
   {
     hspi->RxISR(hspi);
     handled = 1UL;
-  }
+  }*/
 
   /* SPI in mode Transmitter -------------------------------------------------*/
-  if (HAL_IS_BIT_CLR(trigger, SPI_FLAG_UDR) && HAL_IS_BIT_SET(trigger, SPI_FLAG_TXP) && \
+  /*if (HAL_IS_BIT_CLR(trigger, SPI_FLAG_UDR) && HAL_IS_BIT_SET(trigger, SPI_FLAG_TXP) && \
       HAL_IS_BIT_CLR(trigger, SPI_FLAG_DXP))
   {
     hspi->TxISR(hspi);
     handled = 1UL;
-  }
+  }*/
 
 #if defined(USE_SPI_RELOAD_TRANSFER)
   /* SPI Reload  -------------------------------------------------*/
@@ -2966,10 +2962,10 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
     }
 #else
     /* Call appropriate user callback */
-    if (State == HAL_SPI_STATE_BUSY_TX_RX)
-    {
+    //if (State == HAL_SPI_STATE_BUSY_TX_RX)
+    //{
       HAL_SPI_TxRxCpltCallback(hspi);
-    }
+    /*}
     else if (State == HAL_SPI_STATE_BUSY_RX)
     {
       HAL_SPI_RxCpltCallback(hspi);
@@ -2977,12 +2973,12 @@ void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
     else if (State == HAL_SPI_STATE_BUSY_TX)
     {
       HAL_SPI_TxCpltCallback(hspi);
-    }
+    }*/
 #endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
-    else
-    {
+    //else
+    //{
       /* End of the appropriate call */
-    }
+    //}
 
     return;
   }
@@ -3846,7 +3842,7 @@ static void SPI_CloseTransfer(SPI_HandleTypeDef *hspi)
                               SPI_IT_FRE | SPI_IT_MODF));
 
   /* Disable Tx DMA Request */
-  CLEAR_BIT(hspi->Instance->CFG1, SPI_CFG1_TXDMAEN | SPI_CFG1_RXDMAEN);
+  //CLEAR_BIT(hspi->Instance->CFG1, SPI_CFG1_TXDMAEN | SPI_CFG1_RXDMAEN);
 
   /* Report UnderRun error for non RX Only communication */
   if (hspi->State != HAL_SPI_STATE_BUSY_RX)
@@ -3881,11 +3877,11 @@ static void SPI_CloseTransfer(SPI_HandleTypeDef *hspi)
   }
 
   /* SPI Mode Fault error interrupt occurred -------------------------------*/
-  if ((itflag & SPI_FLAG_MODF) != 0UL)
+/*  if ((itflag & SPI_FLAG_MODF) != 0UL)
   {
     SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_MODF);
     __HAL_SPI_CLEAR_MODFFLAG(hspi);
-  }
+  }*/
 
   /* SPI Frame error interrupt occurred ------------------------------------*/
   if ((itflag & SPI_FLAG_FRE) != 0UL)
