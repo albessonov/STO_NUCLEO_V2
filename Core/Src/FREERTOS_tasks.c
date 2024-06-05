@@ -210,7 +210,9 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
-	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,0);
+	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,6);
+	 EnterSecurityAccess(); 
+     Send_Request(ERASE_CRASH,8);
      Send_Result();						
 	}
     else if(Input.testNumber ==  0x54)////записываем VIN!=0
@@ -292,7 +294,7 @@ void vApplicationIdleHook( void )
      CheckACUConfiguration();
 	 for(uint16_t i=0;i<0x7ff;i++){__NOP;}
      Send_Request(ECU_RESET,0);
-     CLEAR_OUTPUT();	 
+     Send_Result();	 
 	}
     else if(Input.testNumber ==  0x5B)////Проверка CrashDetectionOutOfOrder
     {
@@ -302,6 +304,7 @@ void vApplicationIdleHook( void )
      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
 	 CrashDetectionOutOfOrder=((CANRxData[0])&0x02)>>1;
 	 Output.measuredValue[0]=CrashDetectionOutOfOrder;
+	 Output.measuredValue_count++;
      Send_Result();	 
 	}	
     else if(Input.testNumber ==  0x61)
@@ -334,10 +337,13 @@ void ValidAB_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake( pdTRUE,portMAX_DELAY );
+   Output.testNumber=Input.testNumber;
+   Input.testNumber=0;
    Send_Request(ECU_RESET,0);
-   osDelay(6000);	  
+   HAL_Delay(6000);	  
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
-   Output.measuredValue[0]=(CANRxData[2]&0b00010000)>>4;	  
+   Output.measuredValue[0]=(CANRxData[2]&0b00010000)>>4;
+   Output.measuredValue_count++;	  
    store_CANframeRX(2,CANRxData,RxHeader.DataLength);
    Send_Result();	  
   }
@@ -360,6 +366,8 @@ void Accelerometer_period_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   Output.testNumber=Input.testNumber;
+  // Input.testNumber=0;
    FDCAN_ENABLE_INTERRUPTS();
    while(timeX<0)
    {		
@@ -377,6 +385,7 @@ void Accelerometer_period_RUN(void *argument)
     HAL_Delay(25);
     #endif
    }
+    Accelerometer_reset();
   } 
 }
 
@@ -397,7 +406,7 @@ void Accelerometer1_RUN(void *argument)
    }
    CRASH_OCCURED_FLAG=false;
    Output.measuredValue_count++;
-   //CheckACUConfiguration();
+   CheckACUConfiguration();
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	  
    store_CANframeRX(0,CANRxData,RxHeader.DataLength);
    HAL_Delay(1);
@@ -1083,12 +1092,14 @@ void UDS2_RUN(void *argument)
 void UDS3_RUN(void *argument)
 {
  uint32_t Put_index1 =0;
- uint8_t Tester_present[3]={0x02,0x3E,0x02};
+ uint8_t Tester_present[3]={0x02,0x3E,0x00};
  uint8_t UDS_response[3]={0,0,0};
   /* Infinite loop */
   for(;;)
   {      
     ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   Output.testNumber=Input.testNumber;
+   Input.testNumber=0;
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Tester_present);
    store_CANframeTX(0,Tester_present,sizeof(Tester_present),DTOOL_to_AIRBAG.Identifier);
@@ -1202,7 +1213,7 @@ void UDS4b_RUN(void *argument)
 }
 void UDS5_RUN(void *argument)
 {
- uint8_t ERASE_CRASH[5]={0x04,0x2E,0xB0,0x12,0x00};
+ uint8_t Erase_Crash[5]={0x04,0x2E,0xB0,0x12,0x00};
  uint8_t UDS_response[8]={0,};
  uint32_t Put_index1 =0;
   /* Infinite loop */
@@ -1216,8 +1227,8 @@ void UDS5_RUN(void *argument)
    Send_Result();
    /*Erase_crash();----cтираем запись об аварии*/
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ERASE_CRASH); 
-   store_CANframeTX(2,ERASE_CRASH,sizeof(ERASE_CRASH),DTOOL_to_AIRBAG.Identifier);      
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Erase_Crash); 
+   store_CANframeTX(2,Erase_Crash,sizeof(ERASE_CRASH),DTOOL_to_AIRBAG.Identifier);      
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();

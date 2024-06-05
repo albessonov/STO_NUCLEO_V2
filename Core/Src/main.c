@@ -83,7 +83,7 @@ const osThreadAttr_t CAN_period_attributes = {
 };
 osThreadId_t ValidABHandle;
 const osThreadAttr_t  ValidAB_attributes = {
-  .name = "CAN_period",
+  .name = "ValidAB",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -538,10 +538,10 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 /*Handles rising edge interrupt(when crash occurs)*/
-  if(GPIO_Pin==CH0_Pin )//|| GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin)//
+  if(GPIO_Pin==CH0_Pin || GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin)//
   {			
    HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
-//   CRASH_OCCURED_FLAG=true;
+   CRASH_OCCURED_FLAG=true;
    TTF=time*2;
    Output.measuredValue[0]=TTF;
    FDCAN_DISABLE_INTERRUPTS(); 		
@@ -550,6 +550,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
    time=0;
   }
+}
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+	 __disable_irq();
+	__HAL_RCC_SPI3_FORCE_RESET();
+	__NOP();
+	__NOP();
+	__HAL_RCC_SPI3_RELEASE_RESET();
+	__NOP();
+	__NOP();
+	MX_SPI3_Init();
+	__enable_irq();
 }
 
 /* USER CODE END 0 */
@@ -1134,6 +1146,14 @@ void UDS_READ_ERRORS(uint8_t status_byte)
     HAL_Delay(6000);/*таймаут для приёма сообщений*/ 
 	Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
 	NEW_MESSAGES_COUNT=Put_index2-Put_index1;
+	//if(Put_index2>Put_index1)
+    //{
+	  NEW_MESSAGES_COUNT=Put_index2-Put_index1;
+	//}
+	//else
+	//{
+	  //NEW_MESSAGES_COUNT=0x40-Put_index2+Put_index1;	
+	//}
 /*------------------Подсчет числа сообщений-----------------------------*/
     for(uint8_t i=0; i<NEW_MESSAGES_COUNT;i++)
     {
@@ -1281,7 +1301,7 @@ void CheckACUConfiguration(void)
   uint8_t WRITE_DID_REQUEST[5]={0x04,0x2E,0xE1,0x80,0xFF};
   uint8_t READ_DID_RESPONSE[5]={0,};
   uint32_t Put_index1;
-  while(READ_DID_REQUEST[3]<=0x83)
+  while(READ_DID_REQUEST[3]<0x83)
   {
 /*-----------------------Read DID--------------------------------------*/      
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
@@ -1409,6 +1429,12 @@ void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput)
     uint8_t* Request;
     uint8_t Put_index1;
     uint8_t UDS_response[8];
+	uint8_t Erase_crash[5]={0x04,0x2E,0xB0,0x12,0x00};
+	 if(Request_to_send==ERASE_CRASH)
+    {
+        Request=Erase_crash;
+        DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+    }
     if(Request_to_send==ECU_RESET)
     {
         Request=ECU_reset;
@@ -1447,9 +1473,10 @@ void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
    VIN_RESET_2[3]=0xAA;
    VIN_RESET_2[4]=0xAA;      
   }
+  EnterSecurityAccess();
   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_8;
   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_1);
-  store_CANframeTX(0,VIN_RESET_1, 8,DTOOL_to_AIRBAG.Identifier);
+  store_CANframeTX(6,VIN_RESET_1, 8,DTOOL_to_AIRBAG.Identifier);
   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
   while(_NO_RX_FIFO1_NEW_MESSAGE)
   {
@@ -1457,14 +1484,14 @@ void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
   }
   HAL_Delay(150);
   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-  store_CANframeRX(1,DIAG_RESPONSE, RxHeader.DataLength);  
+  store_CANframeRX(7,DIAG_RESPONSE, RxHeader.DataLength);  
   HAL_Delay(150);
   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
-  store_CANframeTX(2,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
+  store_CANframeTX(8,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
   VIN_RESET_2[0]+=0x01;
   HAL_Delay(150);
   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,VIN_RESET_2);
-  store_CANframeTX(3,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
+  store_CANframeTX(9,VIN_RESET_2, 8,DTOOL_to_AIRBAG.Identifier);
   HAL_Delay(10);
   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
   while(_NO_RX_FIFO1_NEW_MESSAGE)
@@ -1472,7 +1499,7 @@ void Write_VIN(bool VIN_to_WRITE)//0-VIN=0,1-VIN!=0
 	HAL_Delay(1);
   }
   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, DIAG_RESPONSE);
-  store_CANframeRX(4,DIAG_RESPONSE, RxHeader.DataLength);  
+  store_CANframeRX(10,DIAG_RESPONSE, RxHeader.DataLength);  
 }
 void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput)
 {

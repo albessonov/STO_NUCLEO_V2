@@ -14,6 +14,7 @@
 #define ENTER_EXTENDED_DIAGNOSTIC 30
 #define CLEAR_DIAGNOSTIC_INFORMATION 50
 #define RETURN_CONTROL_TO_ECU 60
+#define ERASE_CRASH 40
 /*Masks to generate key to enter security access*/
 #define Mask02 0xE94A2291 // ECUProgrammingSession
 #define Mask03 0xD2944523 // ExtendedDiagnosticSession 
