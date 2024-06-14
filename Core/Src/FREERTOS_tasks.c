@@ -8,8 +8,8 @@
 #include "pb_common.h"
 extern FDCAN_HandleTypeDef hfdcan1;
 extern SPI_HandleTypeDef hspi3;
-extern UART_HandleTypeDef huart4;
-extern FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01,TORQUE_AT_CANHS_RNr_02;
+extern UART_HandleTypeDef huart7;//,huart4;
+extern FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01,TORQUE_AT_CANHS_RNr_02,SWA_RNR_1,TIME_R_1,TORQUE_ECM,MIL_ECM,BRAKE_RNR4,BRAKE_RNR1;
 extern FDCAN_RxHeaderTypeDef RxHeader;
 extern FDCAN_TxHeaderTypeDef TxHeader;
 extern volatile uint32_t time;
@@ -37,9 +37,10 @@ volatile bool SEND_CLUSTER=false;
 volatile bool SEND_VEHICLE_STATE=true;
 volatile bool SEND_TESTER_PRESENT=false;
 volatile bool SEND_GEAR_REVERSE=false;
+volatile bool SEND_GEAR_LEVER=false;
 /*флаги, используемые для отслеживание сигнала CD до и после столкновения*/
 extern volatile bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN;
-extern volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN;\
+extern volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN;
 /*массивы, отправляемые по UART*/
 extern uint8_t Result[512];
 
@@ -49,7 +50,7 @@ extern uint8_t Result[512];
 void vApplicationIdleHook( void )
 {
  // HAL_GPIO_WritePin(GPIOE,SB_BP3_CTRL_Pin,fastened);
-  HAL_UART_Receive(&huart4,UARTRXcmd,sizeof(UARTRXcmd),1000);
+  HAL_UART_Receive(&huart7,UARTRXcmd,sizeof(UARTRXcmd),1000);
 	/*Filling in the input structure using nanopb*/
   if(UARTRXcmd[0]==0x08)
   {
@@ -185,35 +186,36 @@ void vApplicationIdleHook( void )
      xTaskNotifyGive(SBR10Handle);					
     }
     else if(Input.testNumber ==  0x51)////считываем DTC 0х09
-    {      
-	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+    { 
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));		
      //xTaskNotifyGive(READ0X09Handle);
-	 SEND_PERIODIC_MESSAGES=true;
-	 xTaskNotifyGive(Send_periodicHandle);	
-     Output.testNumber=Input.testNumber;
-     Input.testNumber=0;        
+	 Input.testNumber=0;	
 	 UDS_READ_ERRORS(0x09);
-     Send_Result();		
+	 Output.measuredValue[0]=Output.frame_count;
+	 Output.measuredValue_count++;
+     Send_Result();
 	}
     else if(Input.testNumber ==  0x52)////считываем DTC 0х08
     {
-     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd)); 
-	 SEND_PERIODIC_MESSAGES=true;
-	 xTaskNotifyGive(Send_periodicHandle);	
-	 Output.testNumber=Input.testNumber;
-     Input.testNumber=0;        
+	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+     //xTaskNotifyGive(READ0X08Handle);	
+     Input.testNumber=0;	
 	 UDS_READ_ERRORS(0x08);
-     Send_Result();						
+	 Output.measuredValue[0]=Output.frame_count;
+	 Output.measuredValue_count++;
+     Send_Result();		
 	}
     else if(Input.testNumber ==  0x53)////чистим DTC 
     {
-     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));        
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+	/* SEND_PERIODIC_MESSAGES=true;
+	 xTaskNotifyGive(Send_periodicHandle);*/		
 	 Output.testNumber=Input.testNumber;
      Input.testNumber=0;        
 	 Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,6);
 	 EnterSecurityAccess(); 
      Send_Request(ERASE_CRASH,8);
-     Send_Result();						
+     Send_Result();				
 	}
     else if(Input.testNumber ==  0x54)////записываем VIN!=0
     {
@@ -300,9 +302,10 @@ void vApplicationIdleHook( void )
     {
 	 uint8_t CANRxData[4]={0,0,0,0};
 	 bool CrashDetectionOutOfOrder;
-     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd)); 
-     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
-	 CrashDetectionOutOfOrder=((CANRxData[0])&0x02)>>1;
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+     while(RxHeader.Identifier!=0x653){ 
+     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);}
+	 CrashDetectionOutOfOrder=((CANRxData[3])&0x02)>>1;
 	 Output.measuredValue[0]=CrashDetectionOutOfOrder;
 	 Output.measuredValue_count++;
      Send_Result();	 
@@ -326,6 +329,8 @@ void Init_test_run(void *argument)
   {
    ulTaskNotifyTake( pdTRUE,portMAX_DELAY );
    FDCAN_ENABLE_INTERRUPTS();//ENABLE FDCAN INTERRUPT LINE0
+   Output.testNumber=Input.testNumber;
+   //Input.testNumber=0;
    time=0;		
   }
  
@@ -340,11 +345,16 @@ void ValidAB_RUN(void *argument)
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
    Send_Request(ECU_RESET,0);
-   HAL_Delay(6000);	  
+   osDelay(3000);	  
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
-   Output.measuredValue[0]=(CANRxData[2]&0b00010000)>>4;
+   Output.measuredValue[0]=(CANRxData[1]&0b00010000)>>4;
    Output.measuredValue_count++;	  
    store_CANframeRX(2,CANRxData,RxHeader.DataLength);
+   osDelay(5000);	  
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
+   Output.measuredValue[1]=(CANRxData[1]&0b00010000)>>4;
+   Output.measuredValue_count++;	  
+   store_CANframeRX(3,CANRxData,RxHeader.DataLength);
    Send_Result();	  
   }
  
@@ -407,9 +417,11 @@ void Accelerometer1_RUN(void *argument)
    CRASH_OCCURED_FLAG=false;
    Output.measuredValue_count++;
    CheckACUConfiguration();
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	  
+   while (RxHeader.Identifier!=0x653)
+   {
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
+   }	     
    store_CANframeRX(0,CANRxData,RxHeader.DataLength);
-   HAL_Delay(1);
   while(timeX<0)
    {		
     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
@@ -427,6 +439,7 @@ void Accelerometer1_RUN(void *argument)
     HAL_Delay(25);
     #endif
    }
+   osDelay(1000);
    while (RxHeader.Identifier!=0x653)
    {
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
@@ -443,24 +456,33 @@ void Accelerometer1_RUN(void *argument)
 }
 void Send_GearLever(void *argument)
 {
-  uint8_t GEAR_LEVER[8]={0,0,0,0,0,0,0,0};
+  uint8_t GEAR_LEVER[8]={0x0,0x3,0,0,0,0,0,0};
   for(;;)
   {
 	  ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
-	  if(SEND_GEAR_REVERSE==true)
+	  
+	  while(SEND_GEAR_LEVER==true)
+	 {
+	   if(SEND_GEAR_REVERSE==true)
       {
-		 GEAR_LEVER[7]=0x02; 
+		 GEAR_LEVER[1]=0x01; 
 	  }
+	  else
+      {
+		 GEAR_LEVER[1]=0x03; 
+	  } 
 	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TORQUE_AT_CANHS_RNr_02,GEAR_LEVER);
-      osDelay(2000);
+	  osDelay(10);
+	 }
+      
   }
 }
 void Send_periodic_start(void *argument)
 {
 /*Задача разблокируется при запуске любого из тестов SBR/самодиагностики,отправляемые сообщения зависят от полученной команды*/
-	uint8_t BCM_CANHS_R_04_data_ER[8]={0x70,0,0,0,0,0,0,0};	//engine running
+	//uint8_t BCM_CANHS_R_04_data_ER[8]={0x70,0,0,0,0,0,0,0xE0};	//engine running
 	uint8_t BCM_CANHS_R_04_data[8]={0x00,0,0,0,0,0,0,0};	//sleeping
-	uint8_t Vehicle_Speed[8]={0xDC,0x05,0,0,0,0,0,0};
+	uint8_t Vehicle_Speed[8]={0x0,0x0,0,0,0,0,0,0};
 	//uint8_t Vehicle_Speed_40kmh[8]={0xA0,0x0F,0,0,0,0,0,0};
 	//uint8_t *Speed;
 	uint8_t Cluster[8]={0,0x01,0,0,0,0,0,0};
@@ -472,30 +494,31 @@ void Send_periodic_start(void *argument)
 /*------------------------Выбор позиции двери--------------------------*/
    if(SEND_DOORSTATE==true)
    {   
-	 BCM_CANHS_R_04_data_ER[6]|=DRIVER_DOOR_OPEN;
+	 BCM_CANHS_R_04_data[1]=DRIVER_DOOR_OPEN;
    }
 /*----------Выбор отправляемой скорости--------------*/   
    if(Input.has_vehicle_speed==true)
    {
    if(Input.vehicle_speed==_40KMH)
 	 {
-	  Vehicle_Speed[0]=0xA0;
-	  Vehicle_Speed[1]=0x0F;
+	  Vehicle_Speed[6]=0x0F;
+	  Vehicle_Speed[7]=0xA0;
 	 }	 
 	 else if(Input.vehicle_speed==_15KMH)
 	 {
-	  Vehicle_Speed[0]=0xDC;
-	  Vehicle_Speed[1]=0x05;
+	  Vehicle_Speed[6]=0x05;
+	  Vehicle_Speed[7]=0xDC;
 	 }	
    }
 /*---------------Выбор VehicleStateExtended---------------------------*/
    if(Input.VehicleStateExtended==Sleeping)
    {
-    BCM_CANHS_R_04_data[0]=0;//sleeping
+    BCM_CANHS_R_04_data[7]=0;//sleeping
    }
    else if(Input.VehicleStateExtended==EngineRunning)
    {
-	BCM_CANHS_R_04_data[0]=0x70;//eng running
+	BCM_CANHS_R_04_data[7]=0x70;//eng running
+	//BCM_CANHS_R_04_data[0]=0x70;//eng running
    }
   /*------------------GenericApplicativeDiagEnable в диагностических тестах*/
    if(Input.has_GenDiagEnable==true)
@@ -542,6 +565,8 @@ void SBR1_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
 /*------------------------------Select seatbelt--------------------------*/
    if(Input.Seatbelt_position==Driver)
    {
@@ -555,26 +580,26 @@ void SBR1_RUN(void *argument)
    }
    else if(Input.Seatbelt_position==Rear_passengerRight)
    {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
-	SB_PIN=SB_BP1_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position==Rear_passengerCenter)
-   {
 	SB_PORT=SB_BP2_CTRL_GPIO_Port;
 	SB_PIN=SB_BP2_CTRL_Pin;
    }
-   else if(Input.Seatbelt_position==Rear_passengerLeft)
+   else if(Input.Seatbelt_position==Rear_passengerCenter)
    {
 	SB_PORT=SB_BP3_CTRL_GPIO_Port;
 	SB_PIN=SB_BP3_CTRL_Pin;
    }
+   else if(Input.Seatbelt_position==Rear_passengerLeft)
+   {
+	SB_PORT=SB_BP1_CTRL_GPIO_Port;
+	SB_PIN=SB_BP1_CTRL_Pin;
+   }
 /*----------------------------Test implementation----------------------------------*/	
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
-   HAL_Delay(1000);
+   osDelay(7000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
-   HAL_Delay(1000);
+   osDelay(7000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(1,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
 /*--------------------------------Forming output--------------------------------------*/
@@ -583,6 +608,9 @@ void SBR1_RUN(void *argument)
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
+   //HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
   }
 }
 void SBR2_RUN(void *argument)
@@ -599,7 +627,10 @@ void SBR2_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-/*------------------------------Select seatbelt--------------------------*/
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
+   Send_Request(ECU_RESET,0);
+	 /*------------------------------Select seatbelt--------------------------*/
    if(Input.Seatbelt_position==Driver)
    {
 	SB_PORT=SB_DR_CTRL_GPIO_Port;
@@ -612,22 +643,23 @@ void SBR2_RUN(void *argument)
    }
    else if(Input.Seatbelt_position==Rear_passengerRight)
    {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
+	SB_PORT=SB_BP2_CTRL_GPIO_Port;
     SB_PIN=SB_BP1_CTRL_Pin;
    }
    else if(Input.Seatbelt_position==Rear_passengerCenter)
    {
-	SB_PORT=SB_BP2_CTRL_GPIO_Port;
+	SB_PORT=SB_BP3_CTRL_GPIO_Port;
 	SB_PIN=SB_BP2_CTRL_Pin;
    }
    else if(Input.Seatbelt_position==Rear_passengerLeft)
    {
-	SB_PORT=SB_BP3_CTRL_GPIO_Port;
+	SB_PORT=SB_BP1_CTRL_GPIO_Port;
 	SB_PIN=SB_BP3_CTRL_Pin;
    }
 /*------------------------Test implementation----------------------------------*/
+   osDelay(5000);
    HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
-   osDelay(1000);//?????			
+   osDelay(8000);//?????			
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
 /*--------------------------------Forming output--------------------------------------*/
@@ -637,6 +669,9 @@ void SBR2_RUN(void *argument)
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
+   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
   }
 }
 void SBR3_4_RUN(void *argument)
@@ -653,6 +688,8 @@ void SBR3_4_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
 /*------------------------------Select seatbelt--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
@@ -666,22 +703,29 @@ void SBR3_4_RUN(void *argument)
    }
    else if(Input.Seatbelt_position==Rear_passengerRight)
    {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
-	SB_PIN=SB_BP1_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position==Rear_passengerCenter)
-   {
 	SB_PORT=SB_BP2_CTRL_GPIO_Port;
 	SB_PIN=SB_BP2_CTRL_Pin;
    }
-   else if(Input.Seatbelt_position==Rear_passengerLeft)
+   else if(Input.Seatbelt_position==Rear_passengerCenter)
    {
 	SB_PORT=SB_BP3_CTRL_GPIO_Port;
 	SB_PIN=SB_BP3_CTRL_Pin;
    }
+   else if(Input.Seatbelt_position==Rear_passengerLeft)
+   {
+	SB_PORT=SB_BP1_CTRL_GPIO_Port;
+	SB_PIN=SB_BP1_CTRL_Pin;
+   }
 /*------------------------Test implementation----------------------------------*/   
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
-   osDelay(1000);			
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	  }
+   osDelay(8000);			
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
 /*---------------------------Forming output-------------------------------------*/
@@ -690,13 +734,24 @@ void SBR3_4_RUN(void *argument)
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	  }
   }
 }
 void SBR5_RUN(void *argument)
 {	
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
   GPIO_TypeDef* SB_PORT;
-  uint16_t SB_PIN,delay;
+  uint16_t SB_PIN;
+  uint32_t delay=40000;
   /* Infinite loop */
   for(;;)
   {
@@ -706,55 +761,78 @@ void SBR5_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
 /*------------------------------Select seatbelt and timeout--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
 	SB_PORT=SB_DR_CTRL_GPIO_Port;
 	SB_PIN=SB_DR_CTRL_Pin;
-	delay=33000;
+	delay=40000;
    }
    else if(Input.Seatbelt_position==Front_passenger)
    {
 	SB_PORT=SB_FP_CTRL_GPIO_Port;
 	SB_PIN=SB_FP_CTRL_Pin;
-	delay=33000;
+	delay=40000;
    }
    else if(Input.Seatbelt_position==Rear_passengerRight) 
    {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
-	SB_PIN=SB_BP1_CTRL_Pin;
-	delay=63000;
+	SB_PORT=SB_BP2_CTRL_GPIO_Port;
+	SB_PIN=SB_BP2_CTRL_Pin;
+	delay=80000;
    }
    else if(Input.Seatbelt_position==Rear_passengerCenter)
    {
-	SB_PORT=SB_BP2_CTRL_GPIO_Port;
-	SB_PIN=SB_BP2_CTRL_Pin;
-	delay=63000;
+	SB_PORT=SB_BP3_CTRL_GPIO_Port;
+	SB_PIN=SB_BP3_CTRL_Pin;
+	delay=80000;
    }
    else if(Input.Seatbelt_position==Rear_passengerLeft)
    {
-	SB_PORT=SB_BP3_CTRL_GPIO_Port;
-	SB_PIN=SB_BP3_CTRL_Pin;
-	delay=63000;
+	SB_PORT=SB_BP1_CTRL_GPIO_Port;
+	SB_PIN=SB_BP1_CTRL_Pin;
+	delay=80000;
    }
-/*------------------------Test implementation----------------------------------*/   
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);	
-   osDelay(delay);
+/*------------------------Test implementation----------------------------------*/
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	  }
+   osDelay(5000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));   	
+   osDelay(delay-5000);
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
+   store_CANframeRX(1,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
 /*---------------------------Forming output-------------------------------------*/   
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
    Output.Seatbelt_position=Input.Seatbelt_position;
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;   
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
+    if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	  }	  
   }
 }
 void SBR6_RUN(void *argument)
 {
   uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
   GPIO_TypeDef* SB_PORT;
-  uint16_t SB_PIN,delay;
+  uint16_t SB_PIN;
+  uint32_t delay=40000;
   /* Infinite loop */
   for(;;)
   {
@@ -764,53 +842,87 @@ void SBR6_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
 /*------------------------------Select seatbelt and timeout--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
    {
 	SB_PORT=SB_DR_CTRL_GPIO_Port;
 	SB_PIN=SB_DR_CTRL_Pin;
-	delay=33000;
+	delay=40000;
    }
    else if(Input.Seatbelt_position==Front_passenger)
    {
 	SB_PORT=SB_FP_CTRL_GPIO_Port;
 	SB_PIN=SB_FP_CTRL_Pin;
-	delay=33000;
+	delay=40000;
    }
    else if(Input.Seatbelt_position==Rear_passengerRight)
    {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
-	SB_PIN=SB_BP1_CTRL_Pin;
-	delay=63000;
+	SB_PORT=SB_BP2_CTRL_GPIO_Port;
+	SB_PIN=SB_BP2_CTRL_Pin;
+	delay=80000;
    }
    else if(Input.Seatbelt_position==Rear_passengerCenter)
    {
-	SB_PORT=SB_BP2_CTRL_GPIO_Port;
-	SB_PIN=SB_BP2_CTRL_Pin;
-	delay=63000;
+	SB_PORT=SB_BP3_CTRL_GPIO_Port;
+	SB_PIN=SB_BP3_CTRL_Pin;
+	delay=80000;
    }
    else if(Input.Seatbelt_position==Rear_passengerLeft)
    {
-    SB_PORT=SB_BP2_CTRL_GPIO_Port;
-	SB_PIN=SB_BP2_CTRL_Pin;
-	delay=63000;
+    SB_PORT=SB_BP1_CTRL_GPIO_Port;
+	SB_PIN=SB_BP1_CTRL_Pin;
+	delay=80000;
    }
 /*------------------------Test implementation----------------------------------*/   
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	  }
    osDelay(delay);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);	
-   osDelay(1000);
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	  }	  	
+   osDelay(5000);
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	  }
+   osDelay(8000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+   store_CANframeRX(1,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
 /*---------------------------Forming output-------------------------------------*/   				
    Output.has_Seatbelt_position=Input.has_Seatbelt_position;
    Output.Seatbelt_position=Input.Seatbelt_position;
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	  }	  
   }
 }
 void SBR7_RUN(void *argument)
@@ -824,62 +936,11 @@ void SBR7_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    CheckACUConfiguration();
    SEND_PERIODIC_MESSAGES=true;	
-   xTaskNotifyGive(Send_periodicHandle);
-   Output.testNumber=Input.testNumber;
-   Input.testNumber=0;
-/*------------------------------Select seatbelt--------------------------*/	  
-   if(Input.Seatbelt_position==Driver)
-   {
-	SB_PORT=SB_DR_CTRL_GPIO_Port;
-	SB_PIN=SB_DR_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position==Front_passenger)
-   {
-	SB_PORT=SB_FP_CTRL_GPIO_Port;
-    SB_PIN=SB_FP_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position== Rear_passengerRight)
-   {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
-	SB_PIN=SB_BP1_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position== Rear_passengerCenter)
-   {
-	SB_PORT=SB_BP2_CTRL_GPIO_Port;
-	SB_PIN=SB_BP2_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position== Rear_passengerLeft)
-   {
-	SB_PORT=SB_BP3_CTRL_GPIO_Port;
-    SB_PIN=SB_BP3_CTRL_Pin;
-   }
-/*------------------------Test implementation----------------------------------*/   
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
    SEND_DOORSTATE=true;
-   osDelay(1000);	
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-/*---------------------------Forming output-------------------------------------*/
-   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));;			
-   Send_Result();
-   SEND_PERIODIC_MESSAGES=false;
-   SEND_DOORSTATE=false;
-   xTaskNotifyStateClear(Send_periodicHandle);
-  }
-}
-void SBR8_RUN(void *argument)
-{
-	uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
-	GPIO_TypeDef* SB_PORT;
-	uint16_t SB_PIN;
-  /* Infinite loop */
-  for(;;)
-  {
-   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-   CheckACUConfiguration();
-   SEND_PERIODIC_MESSAGES=true;	
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
    xTaskNotifyGive(SendGearLeverHandle);
 /*------------------------------Select seatbelt--------------------------*/	  
    if(Input.Seatbelt_position==Driver)
@@ -894,34 +955,122 @@ void SBR8_RUN(void *argument)
    }
    else if(Input.Seatbelt_position== Rear_passengerRight)
    {
-	SB_PORT=SB_BP1_CTRL_GPIO_Port;
-	SB_PIN=SB_BP1_CTRL_Pin;
-   }
-   else if(Input.Seatbelt_position== Rear_passengerCenter)
-   {
 	SB_PORT=SB_BP2_CTRL_GPIO_Port;
 	SB_PIN=SB_BP2_CTRL_Pin;
    }
-   else if(Input.Seatbelt_position== Rear_passengerLeft)
+   else if(Input.Seatbelt_position== Rear_passengerCenter)
    {
 	SB_PORT=SB_BP3_CTRL_GPIO_Port;
-    SB_PIN=SB_BP3_CTRL_Pin;
+	SB_PIN=SB_BP3_CTRL_Pin;
+   }
+   else if(Input.Seatbelt_position== Rear_passengerLeft)
+   {
+	SB_PORT=SB_BP1_CTRL_GPIO_Port;
+    SB_PIN=SB_BP1_CTRL_Pin;
    }
 /*------------------------Test implementation----------------------------------*/   
-   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
-   osDelay(3000);	
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	  }
+   osDelay(8000);	
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-   SEND_GEAR_REVERSE=true;
-   osDelay(1500);
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
-/*---------------------------Forming output-------------------------------------*/		
+/*---------------------------Forming output-------------------------------------*/
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));;			
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    SEND_DOORSTATE=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
    xTaskNotifyStateClear(SendGearLeverHandle);
+	if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	  }
+  }
+}
+void SBR8_RUN(void *argument)
+{
+	uint8_t AIRBAG_CANHS_R_01_data[4]={0,};
+	GPIO_TypeDef* SB_PORT;
+	uint16_t SB_PIN;
+  /* Infinite loop */
+  for(;;)
+  {
+   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   SEND_PERIODIC_MESSAGES=true;
+   xTaskNotifyGive(Send_periodicHandle);
+   Output.testNumber=Input.testNumber;
+   Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
+/*------------------------------Select seatbelt--------------------------*/	  
+   if(Input.Seatbelt_position==Driver)
+   {
+	SB_PORT=SB_DR_CTRL_GPIO_Port;
+	SB_PIN=SB_DR_CTRL_Pin;
+   }
+   else if(Input.Seatbelt_position==Front_passenger)
+   {
+	SB_PORT=SB_FP_CTRL_GPIO_Port;
+    SB_PIN=SB_FP_CTRL_Pin;
+   }
+   else if(Input.Seatbelt_position== Rear_passengerRight)
+   {
+	SB_PORT=SB_BP2_CTRL_GPIO_Port;
+	SB_PIN=SB_BP2_CTRL_Pin;
+   }
+   else if(Input.Seatbelt_position== Rear_passengerCenter)
+   {
+	SB_PORT=SB_BP3_CTRL_GPIO_Port;
+	SB_PIN=SB_BP3_CTRL_Pin;
+   }
+   else if(Input.Seatbelt_position== Rear_passengerLeft)
+   {
+	SB_PORT=SB_BP1_CTRL_GPIO_Port;
+    SB_PIN=SB_BP1_CTRL_Pin;
+   }
+   osDelay(200);
+/*------------------------Test implementation----------------------------------*/   
+   if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	  }
+   osDelay(8000);	
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+   SEND_GEAR_REVERSE=true;
+   osDelay(8000);
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
+   store_CANframeRX(1,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+/*---------------------------Forming output-------------------------------------*/		
+   Send_Result();
+   SEND_PERIODIC_MESSAGES=false;
+   SEND_GEAR_REVERSE=false;
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(Send_periodicHandle);
+   xTaskNotifyStateClear(SendGearLeverHandle);
+	  if(SB_PIN!=SB_FP_CTRL_Pin)
+	   {   
+		HAL_GPIO_WritePin(SB_PORT,SB_PIN,fastened);
+	   }
+   else
+	  {
+	   HAL_GPIO_WritePin(SB_PORT,SB_PIN,unfastened);
+	  }
   }
 }
 void SBR9_RUN(void *argument)
@@ -936,14 +1085,25 @@ void SBR9_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-/*------------------------Test implementation----------------------------------*/   
-   osDelay(3000);	
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
+/*------------------------Test implementation----------------------------------*/
+   HAL_GPIO_WritePin(SB_FP_CTRL_GPIO_Port,SB_FP_CTRL_Pin,fastened);	  
+   HAL_GPIO_WritePin(SBRS_CTRL_GPIO_Port,SBRS_CTRL_Pin,GPIO_PIN_RESET);	  
+   osDelay(9000);	
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
-   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));	  
+   store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
+
+   HAL_GPIO_WritePin(SBRS_CTRL_GPIO_Port,SBRS_CTRL_Pin,GPIO_PIN_SET);	  
+   osDelay(9000);	
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
+   store_CANframeRX(1,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));	  
 /*---------------------------Forming output-------------------------------------*/			
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
   }
 }
 void SBR10_RUN(void *argument)
@@ -958,20 +1118,24 @@ void SBR10_RUN(void *argument)
    xTaskNotifyGive(Send_periodicHandle);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   SEND_GEAR_LEVER=true;
+   xTaskNotifyGive(SendGearLeverHandle);
 /*------------------------Test implementation----------------------------------*/   
-   HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_RESET);//отключение ПБ переднего пассажира 
-   osDelay(3000);	
+   HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_SET);//отключение ПБ переднего пассажира 
+   osDelay(6000);	
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(0,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));
    
-   HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_SET);//Вкл ПБ переднего пассажира 
-   osDelay(3000);	
+   HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_RESET);//Вкл ПБ переднего пассажира 
+   osDelay(6000);	
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, AIRBAG_CANHS_R_01_data);
    store_CANframeRX(1,AIRBAG_CANHS_R_01_data,sizeof(AIRBAG_CANHS_R_01_data));	  
 /*---------------------------Forming output-------------------------------------*/			
    Send_Result();
    SEND_PERIODIC_MESSAGES=false;
    xTaskNotifyStateClear(Send_periodicHandle);
+   SEND_GEAR_LEVER=false;
+   xTaskNotifyStateClear(SendGearLeverHandle);
   }
 }
 void UDS1_RUN(void *argument)
@@ -1146,7 +1310,8 @@ void UDS4a_RUN(void *argument)
    Put_indexF0_2=FDCAN_Get_FIFO_Put_index(FIFO0);
    Output.measuredValue[0]=Put_indexF0_2-Put_indexF0_1;
    Output.measuredValue_count++;	
-//---------------------------Send second frame-----------------------//		
+//---------------------------Send second frame-----------------------//
+   Send_Request(ENTER_EXTENDED_DIAGNOSTIC,6);   
    UDS_request[2]=0;
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;
@@ -1243,45 +1408,12 @@ void UDS5_RUN(void *argument)
 }
 void UDS6_RUN(void *argument)
 {
- uint8_t UDS_request[3]={0x02,0x19,0x0A};
- uint8_t UDS_response[8]={0,};
- uint32_t Put_index1=0,Put_index2 =0;
- uint8_t NEW_MESSAGES_COUNT=0;
-  /* Infinite loop */
   for(;;)
   {
-   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-   Output.testNumber=Input.testNumber;
-   Input.testNumber=0;
-   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
-   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   store_CANframeTX(0,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
-   while(_NO_RX_FIFO1_NEW_MESSAGE)
-   {
-	__NOP();
-   }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response); 
-   store_CANframeRX(1,UDS_response, sizeof(UDS_response));
-   UDS_request[0]=0x30; UDS_request[1]=0x00; UDS_request[2]=0x00;
-   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
-   store_CANframeTX(2,UDS_request,sizeof(UDS_request),DTOOL_to_AIRBAG.Identifier);
-   osDelay(UDS_DELAY);
-   Put_index2=FDCAN_Get_FIFO_Put_index(FIFO1);
-   if(Put_index2>Put_index1)
-    {
-      NEW_MESSAGES_COUNT=Put_index2-Put_index1;
-    }
-    else
-    {
-      NEW_MESSAGES_COUNT=0x40-Put_index1+Put_index2;
-    }
-   for(uint8_t i=0;i<NEW_MESSAGES_COUNT;i++)
-    {
-      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-   	  store_CANframeRX(i+3,UDS_response,sizeof(UDS_response));
-    }
+	ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+    Output.testNumber=Input.testNumber;
+    Input.testNumber=0;
+    UDS_READ_ERRORS(0x0A);
     Send_Result();
   }
 }
@@ -1335,7 +1467,7 @@ void UDS7_RUN(void *argument)
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-   osDelay(10000);
+   HAL_Delay(10000);
    UDS_READ_ERRORS(0x09);
    Send_Result();
    		 
@@ -1451,7 +1583,7 @@ void UDS10_RUN(void *argument)
 /*----------------------Перезапуск блока-------------------------------------*/ 
    Send_Request(ECU_RESET,10);
 /*-----------------Тест на срабатывание--------------------------------------*/
-  /* while(timeX<0)
+   while(timeX<0)
    {		
     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
     #ifdef DEBUG_MODE
@@ -1468,9 +1600,9 @@ void UDS10_RUN(void *argument)
     #endif
    }
    Output.measuredValue[0]=CRASH_OCCURED_FLAG;
-   Output.measuredValue_count++;*/
+   Output.measuredValue_count++;
 /*-----------------------Read DID 0X80--------------------------------------*/    
-   osDelay(5000);
+   HAL_Delay(5000);
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Read_DID);
@@ -1507,7 +1639,7 @@ void UDS10_RUN(void *argument)
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(17,UDS_response,RxHeader.DataLength);
 /*----------------------Проверка сигнала DriverDafetyBeltState до перезагрузки-------------------------------------*/
-   osDelay(1000);//на верочку
+   HAL_Delay(1000);//на верочку
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, UDS_response);
    DriverSafetyBeltState=((UDS_response[0])>>2)&0xFF;
    Output.measuredValue[1]=DriverSafetyBeltState;
@@ -1516,7 +1648,7 @@ void UDS10_RUN(void *argument)
 /*----------------------Перезапуск блока-------------------------------------*/ 
    Send_Request(ECU_RESET,18);
 /*-----------------------Read DID 0X82 после перезапуска--------------------------------------*/
-   osDelay(5000);      
+   HAL_Delay(5000);      
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Read_DID);
@@ -1528,7 +1660,7 @@ void UDS10_RUN(void *argument)
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(21,UDS_response,RxHeader.DataLength);
 /*----------------------Проверка сигнала DriverDafetyBeltState-------------------------------------*/
-   osDelay(1000);
+   HAL_Delay(1000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, UDS_response);
    DriverSafetyBeltState=((UDS_response[0])>>2)&0xFF;
    Output.measuredValue[2]=DriverSafetyBeltState;
@@ -1566,7 +1698,7 @@ void UDS11_12_13_14_16RUN(void *argument)
 	   xTaskNotifyGive(Send_periodicHandle);
        UDS_request[2]=0xC9;
        UDS_request[3]=0x21;
-	   osDelay(500);
+	   HAL_Delay(500);
    }
    else if(Input.testNumber==0x3F)//VOLTAGE
    {
@@ -1620,7 +1752,7 @@ void UDS15_RUN(void *argument)
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(1,UDS_response, RxHeader.DataLength);
  /*------------------Ожиднаие 5с.-----------------------*/
-   osDelay(5000);
+   HAL_Delay(5000);
 /*----------------------повторно читаем lifetimer и получаем ответ--------------------------*/	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,UDS_request);
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
@@ -1709,19 +1841,24 @@ void UDS17_RUN(void *argument)
 
 void EDR_Transmitter(void *argument)
 {
-	uint8_t EDR_request[4]={0x03,0x22,0xFA,0x11};
+	uint8_t EDR_request[4]={0x03,0x22,0xFA,0x16};
 	uint8_t EDR_consequtive[4]={0x30,0x00,0x00,0x00};
 	uint8_t CANRxdata[8]={0,};
-	uint8_t EDR_buffer[256]={0,};
+	uint8_t EDR_buffer[900]={0,};
 	int8_t RXcounter=-1;
+	uint32_t Put_index1=0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   Input.testNumber=0;
    CheckACUConfiguration();
    SEND_PERIODIC_MESSAGES=true;
    SEND_VEHICLE_STATE=true;
    xTaskNotifyGive(Send_periodicHandle);
+   xTaskNotifyGive(EDR10msHandle);
+   xTaskNotifyGive(EDR20msHandle);
+   xTaskNotifyGive(EDR3000msHandle);
    while(timeX<0)
    {		
     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
@@ -1738,36 +1875,70 @@ void EDR_Transmitter(void *argument)
     HAL_Delay(25);
     #endif
    }
-   osDelay(5500);
+   HAL_Delay(5500);
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_request);
    HAL_Delay(5000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, CANRxdata);
    for(uint8_t i=0;i<3;i++){EDR_buffer[i]=CANRxdata[i+5];}
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_consequtive);
+   //HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_consequtive);
 	 while(1)
 	 {
+	  if((RxHeader.DataLength)!=8) break;
+      HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,EDR_consequtive);
+	  if(Put_index1<=0x40)
+	  {
+	  Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+	  }
+      else Put_index1+=1;	  
+	  while(_NO_RX_FIFO1_NEW_MESSAGE)
+      {
+	   __NOP;
+	  }
 	  HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, CANRxdata);
 	  RXcounter++;
-	  if((RxHeader.DataLength)!=8) break;
+	 // if((RxHeader.DataLength)!=8) break;
       for(uint8_t i=1;i<=7;i++){EDR_buffer[7*RXcounter+2+i]=CANRxdata[i];}	       			
 	 }
 	for(uint8_t i=0;i<5;i++)
 	  {
 		EDR_buffer[7*(RXcounter+1)+3+i]=CANRxdata[i+1];
 	  }
-	HAL_UART_Transmit(&huart4,EDR_buffer,7*(RXcounter+1)+8,1000);
+	HAL_UART_Transmit(&huart7,EDR_buffer,7*(RXcounter+1)+8,1000);
 	SEND_PERIODIC_MESSAGES=false;	
   }
 }
-void READ0X09_RUN(void *argument)
+void EDR10ms_RUN(void *argument)
 {
-	 ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-	 Output.testNumber=Input.testNumber;
-     Input.testNumber=0;	
-	 UDS_READ_ERRORS(0x09);
-	 Output.measuredValue[0]=Output.frame_count;
-	 Output.measuredValue_count++;
-     Send_Result();
-	 portYIELD();
-     //xTaskNotifyStateClear(READ0X09Handle);
+uint8_t swa_rnr1[8]={0,0,0,0x01,0x09,0,0x1,0x09};
+uint8_t torque_at[8]={0,0x03,0,0,0,0,0,0};
+uint8_t torque_ecm[7]={0,0x03,0,0,0,0x3,0x19};
+uint8_t brake_rnr4[8]={0,0,0,0x05,0xD4,0,0,0};
+	for(;;)
+    {
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&SWA_RNR_1,swa_rnr1);
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TORQUE_AT_CANHS_RNr_02,torque_at);
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TORQUE_ECM,torque_ecm);
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_RNR4,brake_rnr4);
+		osDelay(10);
+	}
+}
+void EDR20ms_RUN(void *argument)
+{
+uint8_t brake_rnr1[8]={0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0};
+	for(;;)
+	{
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_RNR1,brake_rnr1);
+		osDelay(20);
+	}
+}
+void EDR3000ms_RUN(void *argument)
+{
+	uint8_t time_r_1[6]={0x12,0x04,0x78,0x18,0x0A,0x0C};
+	uint8_t mil_ecm[8]={0,0,0,0,0,0,0,0x20};
+	for(;;)
+	{
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TIME_R_1,time_r_1);
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&MIL_ECM,mil_ecm);
+		osDelay(3000);
+	}
 }

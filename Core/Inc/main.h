@@ -97,6 +97,8 @@ void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput);
 #define POWER_GOOD_EXTI_IRQn EXTI0_IRQn
 #define CH11_Pin GPIO_PIN_14
 #define CH11_GPIO_Port GPIOB
+#define CH5_Pin GPIO_PIN_12
+#define CH5_GPIO_Port GPIOB
 #define CH11_EXTI_IRQn EXTI15_10_IRQn
 #define CH0_Pin GPIO_PIN_12
 #define CH0_GPIO_Port GPIOE

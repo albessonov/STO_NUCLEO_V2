@@ -1,6 +1,6 @@
 /*Private defines*/
-#define fastened GPIO_PIN_SET
-#define unfastened GPIO_PIN_RESET
+#define fastened GPIO_PIN_RESET
+#define unfastened GPIO_PIN_SET
 #define _40KMH 1
 #define _15KMH 0
 #define DRIVER_DOOR_OPEN 0b00001000
@@ -10,6 +10,7 @@
 #define Sleeping 0
 #define EngineRunning 1
 #define _NO_RX_FIFO1_NEW_MESSAGE ((FDCAN1->RXF1S)&0x00FF0000)>>16==Put_index1
+#define _NO_RX_FIFO0_NEW_MESSAGE ((FDCAN1->RXF0S)&0x00FF0000)>>16==Put_index1
 #define ECU_RESET 20
 #define ENTER_EXTENDED_DIAGNOSTIC 30
 #define CLEAR_DIAGNOSTIC_INFORMATION 50
@@ -65,8 +66,11 @@ void DIAG5_RUN(void *argument);
 void DIAG6_RUN(void *argument);
 void DIAG7_8_RUN(void *argument);
 void DIAG9_RUN(void *argument);
-//void DIAG10_RUN(void *argument);
-void READ0X09_RUN(void *argument);
+void DIAG10_RUN(void *argument);
+
+void EDR10ms_RUN(void *argument);
+void EDR20ms_RUN(void *argument);
+void EDR3000ms_RUN(void *argument);
 
 /*Exported task prototypes*/
 extern osThreadId_t Init_testHandle;
@@ -114,6 +118,10 @@ extern osThreadId_t DIAG9Handle;
 
 extern osThreadId_t EDRHandle;
 
-extern osThreadId_t READ0X09Handle;
+extern osThreadId_t EDR10msHandle;
+extern osThreadId_t EDR20msHandle;
+extern osThreadId_t EDR3000msHandle;
+
+
 
 

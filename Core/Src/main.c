@@ -105,7 +105,7 @@ osThreadId_t Send_periodicHandle;
 const osThreadAttr_t Send_periodic_attributes = {
   .name = "Send_periodic",
   .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 osThreadId_t SendGearLeverHandle;
 const osThreadAttr_t SendGearLever_attributes = {
@@ -266,14 +266,26 @@ const osThreadAttr_t EDR_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-osThreadId_t READ0X09Handle;
-const osThreadAttr_t READ0X09_attributes = {
-  .name = "READ0X09",
-  .stack_size = 1024 * 4,
+osThreadId_t EDR10msHandle;
+const osThreadAttr_t EDR10ms_attributes = {
+  .name = "EDR10ms",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t EDR20msHandle;
+const osThreadAttr_t EDR20ms_attributes = {
+  .name = "EDR10ms",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+osThreadId_t EDR3000msHandle;
+const osThreadAttr_t EDR3000ms_attributes = {
+  .name = "EDR10ms",
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01,TORQUE_AT_CANHS_RNr_02;
+FDCAN_TxHeaderTypeDef BCM_CANHS_R_04,BRAKE_CANHS_R_01,DTOOL_to_AIRBAG,CLUSTER_CANHS_RNr_01,TORQUE_AT_CANHS_RNr_02,SWA_RNR_1,TIME_R_1,TORQUE_ECM,MIL_ECM,BRAKE_RNR4,BRAKE_RNR1;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 volatile uint32_t time;
@@ -394,10 +406,6 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
         acceleration_Y_ptr=Side_15kmh_100_Y_transformed;
         break;
       case 0x07:    
-        acceleration_X_ptr=Side_25kmh_100_X_transformed;
-        acceleration_Y_ptr=Side_25kmh_100_Y_transformed;
-        break;
-      case 0x08:    
         acceleration_X_ptr=Side_R95_X_transformed;
         acceleration_Y_ptr=Side_R95_Y_transformed;
 	    break;
@@ -444,9 +452,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET)
   {
    HAL_GPIO_TogglePin(CAN_LED_GPIO_Port,CAN_LED_Pin);
-/*implementation for the first test which measures the launching time measures and transmits the time between 
-        reception of the UART command to launch test and first received CAN message*/
-    if(Input.testNumber==0x11)
+
+   if(Input.testNumber==0x11)
     {  	   			
        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData) == HAL_OK)
        { 
@@ -463,7 +470,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   Those message is being received 50 times, time interval between two consequent messages is being measured every time
   then the average period is being calculated and transmitted via UART*/
 //-------------------------------------Select id to measure-----------------------------//		
-    else if(Input.testNumber==0x12||Input.testNumber==0x13)
+     if(Input.testNumber==0x12||Input.testNumber==0x13)
     {
      Output.testNumber=Input.testNumber;
      //Input.testNumber=0;        
@@ -538,16 +545,16 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 /*Handles rising edge interrupt(when crash occurs)*/
-  if(GPIO_Pin==CH0_Pin || GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin)//
+  if(GPIO_Pin==CH5_Pin ||GPIO_Pin==CH3_Pin || GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin|| GPIO_Pin==CH7_Pin|| GPIO_Pin==CH11_Pin|| GPIO_Pin==CH8_Pin)//
   {			
-   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
+   //HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
    CRASH_OCCURED_FLAG=true;
    TTF=time*2;
    Output.measuredValue[0]=TTF;
    FDCAN_DISABLE_INTERRUPTS(); 		
   }
-  if(GPIO_Pin==POWER_GOOD_Pin)
-  {
+  if(GPIO_Pin==POWER_GOOD_Pin &&Input.testNumber==0x11)
+  { 	  
    time=0;
   }
 }
@@ -682,7 +689,10 @@ int main(void)
   
   UDS15Handle = osThreadNew(UDS15_RUN, NULL, &UDS15_attributes);
   
-  READ0X09Handle= osThreadNew(READ0X09_RUN, NULL, &UDS15_attributes);
+  EDR10msHandle = osThreadNew(EDR10ms_RUN, NULL, &UDS15_attributes);
+  EDR20msHandle = osThreadNew(EDR20ms_RUN, NULL, &UDS15_attributes);
+  EDR3000msHandle = osThreadNew(EDR3000ms_RUN, NULL, &UDS15_attributes);
+  
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -990,7 +1000,7 @@ static void MX_UART7_Init(void)
   huart7.Init.StopBits = UART_STOPBITS_1;
   huart7.Init.Parity = UART_PARITY_NONE;
   huart7.Init.Mode = UART_MODE_TX_RX;
-  huart7.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
+  huart7.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart7.Init.OverSampling = UART_OVERSAMPLING_16;
   huart7.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   huart7.Init.ClockPrescaler = UART_PRESCALER_DIV1;
@@ -1087,14 +1097,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(POWER_GOOD_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CH11_Pin CH2_Pin CH3_Pin */
-  GPIO_InitStruct.Pin = CH11_Pin|CH2_Pin|CH3_Pin;
+  /*Configure GPIO pins : CH11_Pin CH2_Pin CH3_Pin CH5_Pin */
+  GPIO_InitStruct.Pin = CH11_Pin|CH2_Pin|CH3_Pin|CH5_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CH0_Pin CH1_Pin */
-  GPIO_InitStruct.Pin = CH0_Pin|CH1_Pin;
+  /*Configure GPIO pins : CH1_Pin */
+  GPIO_InitStruct.Pin = CH1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -1281,6 +1291,72 @@ static void FDCAN1_Config(void)
   TORQUE_AT_CANHS_RNr_02.FDFormat = FDCAN_CLASSIC_CAN;
   TORQUE_AT_CANHS_RNr_02.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   TORQUE_AT_CANHS_RNr_02.MessageMarker = 0;
+  
+  /*Prepare SWA_RNR_1 Tx Header*/
+  SWA_RNR_1.Identifier = 0x0C6;
+  SWA_RNR_1.IdType = FDCAN_STANDARD_ID;
+  SWA_RNR_1.TxFrameType = FDCAN_DATA_FRAME;
+  SWA_RNR_1.DataLength = FDCAN_DLC_BYTES_8;
+  SWA_RNR_1.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  SWA_RNR_1.BitRateSwitch = FDCAN_BRS_OFF;
+  SWA_RNR_1.FDFormat = FDCAN_CLASSIC_CAN;
+  SWA_RNR_1.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  SWA_RNR_1.MessageMarker = 0;
+  
+  /*Prepare TIME_R_1 Tx Header*/
+  TIME_R_1.Identifier = 0x53B;
+  TIME_R_1.IdType = FDCAN_STANDARD_ID;
+  TIME_R_1.TxFrameType = FDCAN_DATA_FRAME;
+  TIME_R_1.DataLength = FDCAN_DLC_BYTES_6;
+  TIME_R_1.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TIME_R_1.BitRateSwitch = FDCAN_BRS_OFF;
+  TIME_R_1.FDFormat = FDCAN_CLASSIC_CAN;
+  TIME_R_1.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TIME_R_1.MessageMarker = 0;
+  
+  /*Prepare TORQUE_ECM Tx Header*/
+  TORQUE_ECM.Identifier = 0x186;
+  TORQUE_ECM.IdType = FDCAN_STANDARD_ID;
+  TORQUE_ECM.TxFrameType = FDCAN_DATA_FRAME;
+  TORQUE_ECM.DataLength = FDCAN_DLC_BYTES_7;
+  TORQUE_ECM.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TORQUE_ECM.BitRateSwitch = FDCAN_BRS_OFF;
+  TORQUE_ECM.FDFormat = FDCAN_CLASSIC_CAN;
+  TORQUE_ECM.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TORQUE_ECM.MessageMarker = 0;
+  
+  /*Prepare MIL_ECM Tx Header*/
+  MIL_ECM.Identifier = 0x66A;
+  MIL_ECM.IdType = FDCAN_STANDARD_ID;
+  MIL_ECM.TxFrameType = FDCAN_DATA_FRAME;
+  MIL_ECM.DataLength = FDCAN_DLC_BYTES_8;
+  MIL_ECM.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  MIL_ECM.BitRateSwitch = FDCAN_BRS_OFF;
+  MIL_ECM.FDFormat = FDCAN_CLASSIC_CAN;
+  MIL_ECM.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  MIL_ECM.MessageMarker = 0;
+  
+    /*Prepare BRAKE_RNR4 Tx Header*/
+  BRAKE_RNR4.Identifier = 0x12E;
+  BRAKE_RNR4.IdType = FDCAN_STANDARD_ID;
+  BRAKE_RNR4.TxFrameType = FDCAN_DATA_FRAME;
+  BRAKE_RNR4.DataLength = FDCAN_DLC_BYTES_8;
+  BRAKE_RNR4.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  BRAKE_RNR4.BitRateSwitch = FDCAN_BRS_OFF;
+  BRAKE_RNR4.FDFormat = FDCAN_CLASSIC_CAN;
+  BRAKE_RNR4.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  BRAKE_RNR4.MessageMarker = 0;
+  
+      /*Prepare BRAKE_RNR1 Tx Header*/
+  BRAKE_RNR1.Identifier = 0x242;
+  BRAKE_RNR1.IdType = FDCAN_STANDARD_ID;
+  BRAKE_RNR1.TxFrameType = FDCAN_DATA_FRAME;
+  BRAKE_RNR1.DataLength = FDCAN_DLC_BYTES_8;
+  BRAKE_RNR1.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  BRAKE_RNR1.BitRateSwitch = FDCAN_BRS_OFF;
+  BRAKE_RNR1.FDFormat = FDCAN_CLASSIC_CAN;
+  BRAKE_RNR1.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  BRAKE_RNR1.MessageMarker = 0;
   FDCAN_DISABLE_INTERRUPTS();
 }
 
@@ -1409,8 +1485,8 @@ void Send_Result(void)
     message_length=streamwrt.bytes_written;
 	len[0]=((message_length)>>8)&0xFF;
     len[1]=(message_length)&0xFF;
-	HAL_UART_Transmit(&huart4,len,2,1000);
-    HAL_UART_Transmit(&huart4,Result,message_length,1000);
+	HAL_UART_Transmit(&huart7,len,2,1000);
+    HAL_UART_Transmit(&huart7,Result,message_length,1000);
 	CLEAR_OUTPUT();
 }
 uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr)
@@ -1458,7 +1534,8 @@ void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput)
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Request);
     store_CANframeTX(StartPositionInOutput,Request, DTOOL_to_AIRBAG.DataLength,DTOOL_to_AIRBAG.Identifier);
     Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
-    while(_NO_RX_FIFO1_NEW_MESSAGE){__NOP();}
+    while(_NO_RX_FIFO1_NEW_MESSAGE)
+    {__NOP();}
     HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
     store_CANframeRX(StartPositionInOutput+1,UDS_response, RxHeader.DataLength);    
 }

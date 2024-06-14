@@ -19,8 +19,8 @@ typedef enum _Position {
     Not_Tracked = 0,
     Driver = 1,
     Front_passenger = 2,
-    Rear_passengerRight = 3,
-    Rear_passengerCenter = 4,
+    Rear_passengerRight = 4,
+    Rear_passengerCenter = 3,
     Rear_passengerLeft = 5
 } Position;
 
