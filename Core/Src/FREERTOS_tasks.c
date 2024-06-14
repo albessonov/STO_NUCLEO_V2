@@ -1904,7 +1904,11 @@ void EDR_Transmitter(void *argument)
 		EDR_buffer[7*(RXcounter+1)+3+i]=CANRxdata[i+1];
 	  }
 	HAL_UART_Transmit(&huart7,EDR_buffer,7*(RXcounter+1)+8,1000);
-	SEND_PERIODIC_MESSAGES=false;	
+	SEND_PERIODIC_MESSAGES=false;
+    xTaskNotifyStateClear(Send_periodicHandle);
+    xTaskNotifyStateClear(EDR10msHandle);
+    xTaskNotifyStateClear(EDR20msHandle);
+    xTaskNotifyStateClear(EDR3000msHandle);	  
   }
 }
 void EDR10ms_RUN(void *argument)
@@ -1915,6 +1919,7 @@ uint8_t torque_ecm[7]={0,0x03,0,0,0,0x3,0x19};
 uint8_t brake_rnr4[8]={0,0,0,0x05,0xD4,0,0,0};
 	for(;;)
     {
+		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&SWA_RNR_1,swa_rnr1);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TORQUE_AT_CANHS_RNr_02,torque_at);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TORQUE_ECM,torque_ecm);
@@ -1927,6 +1932,7 @@ void EDR20ms_RUN(void *argument)
 uint8_t brake_rnr1[8]={0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0};
 	for(;;)
 	{
+		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&BRAKE_RNR1,brake_rnr1);
 		osDelay(20);
 	}
@@ -1937,6 +1943,7 @@ void EDR3000ms_RUN(void *argument)
 	uint8_t mil_ecm[8]={0,0,0,0,0,0,0,0x20};
 	for(;;)
 	{
+		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TIME_R_1,time_r_1);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&MIL_ECM,mil_ecm);
 		osDelay(3000);
