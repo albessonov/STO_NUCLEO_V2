@@ -234,7 +234,7 @@ const osThreadAttr_t UDS8_attributes = {
 osThreadId_t UDS9Handle;
 const osThreadAttr_t UDS9_attributes = {
   .name = "UDS9",
-  .stack_size = 512 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -682,7 +682,7 @@ int main(void)
   UDS8Handle = osThreadNew(UDS8_RUN, NULL, &UDS8_attributes);
   
   UDS9Handle = osThreadNew(UDS9_RUN, NULL, &UDS9_attributes);
-  
+
   UDS10Handle = osThreadNew(UDS10_RUN, NULL, &UDS10_attributes);
  
   UDS11_12_13_14_16Handle = osThreadNew(UDS11_12_13_14_16RUN, NULL, &UDS11_12_13_14_16_attributes);
