@@ -193,7 +193,7 @@ const osThreadAttr_t UDS2_attributes = {
 osThreadId_t UDS3Handle;
 const osThreadAttr_t UDS3_attributes = {
   .name = "UDS3",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -224,6 +224,14 @@ const osThreadAttr_t UDS6_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+
+osThreadId_t UDS7Handle;
+const osThreadAttr_t UDS7_attributes = {
+  .name = "UDS7",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 osThreadId_t UDS8Handle;
 const osThreadAttr_t UDS8_attributes = {
   .name = "UDS8",
@@ -256,7 +264,7 @@ const osThreadAttr_t UDS11_12_13_14_16_attributes = {
 osThreadId_t UDS15Handle;
 const osThreadAttr_t UDS15_attributes = {
   .name = "UDS15",
-  .stack_size = 512 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -278,10 +286,18 @@ const osThreadAttr_t EDR20ms_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+
 osThreadId_t EDR3000msHandle;
 const osThreadAttr_t EDR3000ms_attributes = {
   .name = "EDR10ms",
   .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t READDTCHandle;
+const osThreadAttr_t READDTC_attributes = {
+  .name = "READDTC",
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -347,14 +363,20 @@ uint8_t RCOMMAND0x00=0b10000100;
 uint8_t RCOMMAND0x02=0b10100100;
 uint32_t ctr2=0;
 uint32_t ctr0=0;
-uint32_t TTF;
+uint32_t TTF_DAB=0;
+uint32_t TTF_PAB=0;
+uint32_t TTF_DPT=0;
+uint32_t TTF_PPT=0;
+uint32_t TTF_DSAB=0;
+uint32_t TTF_PSAB=0;
+uint32_t TTF_DCAB=0;
 volatile bool CRASH_OCCURED_FLAG=false;
 /*Flags which are used to track Crashdetected signal state in accelerometer tests*/
 volatile bool CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
 volatile bool CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
 /*----------------------------------------------------------*/
 extern TestData Output, Input;
-uint8_t Result[512];
+uint8_t Result[2*512];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -490,7 +512,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
        timelist[RXcounter]=time*2;
        RXcounter++; 
        time=0;    				 
-     }
+     
      if(RXcounter==10)
 	 {
       store_CANframeRX(0,CANRxData,RxHeader.DataLength);
@@ -519,25 +541,12 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
       Send_Result();
       RXcounter=0;
       Accelerometer_reset();
-      FDCAN_DISABLE_INTERRUPTS();		 
-	 }				
-    }
-/*Part which tracks state of CrashDetected signal from 0x653 frame */
-    else if(Input.testNumber==0x22)
-	{		
-	 if(timeX>-98&&CRASH_DETECTED_BEFORE_COLLISION_TAKEN==false)
-	 {
-      HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);		 
-      store_CANframeRX(0,CANRxData,RxHeader.DataLength);
-      CRASH_DETECTED_BEFORE_COLLISION_TAKEN=true;
-     }
-     if(timeX>0&&CRASH_DETECTED_AFTER_COLLISION_TAKEN==false)
-     {
-      HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CANRxData);	 
-      store_CANframeRX(0,CANRxData,RxHeader.DataLength);
-      CRASH_DETECTED_AFTER_COLLISION_TAKEN=true;
-     }    						
-	}						 
+      FDCAN_DISABLE_INTERRUPTS();
+      		 
+	 }
+	}	 
+   }
+/*Part which tracks state of CrashDetected signal from 0x653 frame */				 
   }
  else __NOP();
 }
@@ -545,17 +554,88 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 /*Handles rising edge interrupt(when crash occurs)*/
-  if(GPIO_Pin==CH5_Pin ||GPIO_Pin==CH3_Pin || GPIO_Pin==CH2_Pin|| GPIO_Pin==CH1_Pin|| GPIO_Pin==CH3_Pin|| GPIO_Pin==CH7_Pin|| GPIO_Pin==CH11_Pin|| GPIO_Pin==CH8_Pin)//
-  {			
-   //HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_RESET);
-   CRASH_OCCURED_FLAG=true;
-   TTF=time*2;
-   Output.measuredValue[0]=TTF;
-   FDCAN_DISABLE_INTERRUPTS(); 		
-  }
-  if(GPIO_Pin==POWER_GOOD_Pin &&Input.testNumber==0x11)
-  { 	  
-   time=0;
+  switch(GPIO_Pin)
+  {
+	case CH1_Pin:
+	  {			
+	   CRASH_OCCURED_FLAG=true;
+	   if(TTF_DAB==0)
+	   {
+		TTF_DAB=time<<1;
+		Output.measuredValue[0]=TTF_DAB;
+	   }
+	   break;		  
+	  }
+	case CH2_Pin:
+	  {			
+	   CRASH_OCCURED_FLAG=true;
+	   if(TTF_PAB==0)
+	   {
+		TTF_PAB=time<<1;
+		Output.measuredValue[1]=TTF_PAB;
+	   }
+	   break;
+	  }
+	case CH3_Pin:
+	  {			
+	   CRASH_OCCURED_FLAG=true;
+	   if(TTF_DPT==0)
+	   {
+		TTF_DPT=time<<1;
+		Output.measuredValue[2]=TTF_DPT;
+	   }
+	   break;		  
+	  }
+	case CH5_Pin:
+	  {			
+	   CRASH_OCCURED_FLAG=true;
+	   if(TTF_PPT==0)
+	   {
+		TTF_PPT=time<<1;
+		Output.measuredValue[3]=TTF_PPT;
+	   }
+	   break;
+	  }
+	case CH7_Pin:///7
+	  {			
+	   CRASH_OCCURED_FLAG=true;
+	   if(TTF_DSAB==0)
+	   {
+		TTF_DSAB=time<<1;
+		Output.measuredValue[4]=TTF_DSAB;
+	   }
+	   break;
+	  }
+	case CH8_Pin:
+	  {			
+	   CRASH_OCCURED_FLAG=true;
+	   if(TTF_PSAB==0)
+	   {
+		TTF_PSAB=time<<1;
+		Output.measuredValue[5]=TTF_PSAB;
+	   }
+	   break;
+	  }
+	case CH11_Pin:
+      {			
+       CRASH_OCCURED_FLAG=true;
+	   if(TTF_DCAB==0)
+	   {
+		TTF_DCAB=time<<1;
+		Output.measuredValue[6]=TTF_DCAB;
+	   }
+	   break;
+	  }
+  
+	case POWER_GOOD_Pin:
+	  {		
+	  if(Input.testNumber==0x11)
+		  {
+			time=0;
+		  }
+		  break;
+	  } 	  
+   
   }
 }
 void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
@@ -679,6 +759,8 @@ int main(void)
 	
   UDS6Handle = osThreadNew(UDS6_RUN, NULL, &UDS6_attributes);
   
+  UDS7Handle = osThreadNew(UDS7_RUN, NULL, &UDS7_attributes);
+  
   UDS8Handle = osThreadNew(UDS8_RUN, NULL, &UDS8_attributes);
   
   UDS9Handle = osThreadNew(UDS9_RUN, NULL, &UDS9_attributes);
@@ -692,6 +774,8 @@ int main(void)
   EDR10msHandle = osThreadNew(EDR10ms_RUN, NULL, &UDS15_attributes);
   EDR20msHandle = osThreadNew(EDR20ms_RUN, NULL, &UDS15_attributes);
   EDR3000msHandle = osThreadNew(EDR3000ms_RUN, NULL, &UDS15_attributes);
+  
+  READDTCHandle = osThreadNew(READDTC_RUN, NULL, &READDTC_attributes);
   
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -1179,6 +1263,13 @@ void Accelerometer_reset(void)
   timeX=-100.5;
   ctr2=0;
   timeY=-100.5;
+  TTF_DAB=0;
+  TTF_PAB=0;
+  TTF_DPT=0;
+  TTF_PPT=0;
+  TTF_DSAB=0;
+  TTF_PSAB=0;
+  TTF_DCAB=0;
 }
 void CLEAR_OUTPUT(void)
 {
@@ -1377,6 +1468,8 @@ void CheckACUConfiguration(void)
   uint8_t WRITE_DID_REQUEST[5]={0x04,0x2E,0xE1,0x80,0xFF};
   uint8_t READ_DID_RESPONSE[5]={0,};
   uint32_t Put_index1;
+  Send_Request(ENTER_EXTENDED_DIAGNOSTIC,0);
+  EnterSecurityAccess();
   while(READ_DID_REQUEST[3]<0x83)
   {
 /*-----------------------Read DID--------------------------------------*/      

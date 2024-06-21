@@ -120,6 +120,11 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
 	 xTaskNotifyGive(UDS6Handle);
 	}
+	else if(Input.testNumber ==  0x38)
+    {
+     memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+	 xTaskNotifyGive(UDS7Handle);
+	}
     else if(Input.testNumber ==  0x39)
     {
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
@@ -195,25 +200,10 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
      xTaskNotifyGive(SBR10Handle);					
     }
-    else if(Input.testNumber ==  0x51)////считываем DTC 0х09
+    else if(Input.testNumber ==  0x51||Input.testNumber ==  0x52)////считываем DTC 0х09
     { 
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));		
-     //xTaskNotifyGive(READ0X09Handle);
-	 Input.testNumber=0;	
-	 UDS_READ_ERRORS(0x09);
-	 Output.measuredValue[0]=Output.frame_count;
-	 Output.measuredValue_count++;
-     Send_Result();
-	}
-    else if(Input.testNumber ==  0x52)////считываем DTC 0х08
-    {
-	 memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
-     //xTaskNotifyGive(READ0X08Handle);	
-     Input.testNumber=0;	
-	 UDS_READ_ERRORS(0x08);
-	 Output.measuredValue[0]=Output.frame_count;
-	 Output.measuredValue_count++;
-     Send_Result();		
+     xTaskNotifyGive(READDTCHandle);
 	}
     else if(Input.testNumber ==  0x53)////чистим DTC 
     {
@@ -386,6 +376,9 @@ void Accelerometer_period_RUN(void *argument)
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+   CheckACUConfiguration();
+   Send_Request(ERASE_CRASH,0);
+   ChangeOperatingState(WORKING_MODE,0);
    Output.testNumber=Input.testNumber;
   // Input.testNumber=0;
    FDCAN_ENABLE_INTERRUPTS();
@@ -412,7 +405,8 @@ void Accelerometer_period_RUN(void *argument)
 void Accelerometer1_RUN(void *argument)
 {
   /* USER CODE BEGIN Accelerometer1_RUN */
-	uint8_t CANRxData[4];
+	uint8_t CANRxData[4]={0,0,0,0};
+	uint8_t CANRxData2[4]={0,0,0,0};
 /*Runs the accelerometer emualator, set of accelerations is depended on byte received via UART,frame forming is given in HAL_SPI_TxRxCpltCallback*/
   /* Infinite loop */
   for(;;)
@@ -425,8 +419,11 @@ void Accelerometer1_RUN(void *argument)
 	HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_RESET);//Нажатие кнопки отключения ПБ переднего пассажира       
    }
    CRASH_OCCURED_FLAG=false;
-   Output.measuredValue_count++;
+   Output.measuredValue_count=7;
    CheckACUConfiguration();
+   Send_Request(ERASE_CRASH,0);
+   osDelay(1);
+   ChangeOperatingState(WORKING_MODE,0);
    while (RxHeader.Identifier!=0x653)
    {
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
@@ -439,7 +436,6 @@ void Accelerometer1_RUN(void *argument)
     HAL_Delay(25);
     #endif
    }
-   HAL_GPIO_WritePin(POWER_GOOD_GPIO_Port,POWER_GOOD_Pin,GPIO_PIN_SET);
    time = 0;
   
    while(timeX<290&&CRASH_OCCURED_FLAG==false)
@@ -449,27 +445,59 @@ void Accelerometer1_RUN(void *argument)
     HAL_Delay(25);
     #endif
    }
-   osDelay(1000);
-   while (RxHeader.Identifier!=0x653)
+   HAL_Delay(2000);
+   while (1)
    {
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);
-   }	   
-   store_CANframeRX(1,CANRxData,RxHeader.DataLength);
+	HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData2);
+    if(RxHeader.Identifier==0x653)
+	{	
+		break;
+	}
+   }
+   //HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData2);   
+   store_CANframeRX(1,CANRxData2,RxHeader.DataLength);
    Output.has_accDataNumber=Input.has_accDataNumber;
    Output.accDataNumber=Input.accDataNumber;
    Send_Result();
    CRASH_DETECTED_BEFORE_COLLISION_TAKEN=false;
    CRASH_DETECTED_AFTER_COLLISION_TAKEN=false;
    Accelerometer_reset();
+   FDCAN_DISABLE_INTERRUPTS();
+   //Send_Request(ECU_RESET,0);
+   //CLEAR_OUTPUT();
   }
   /* USER CODE END Accelerometer1_RUN */
 }
 void Send_GearLever(void *argument)
 {
   uint8_t GEAR_LEVER[8]={0x0,0x3,0,0,0,0,0,0};
+ /* uint8_t cmd1[8]={0x10,0x0a,0x31,0x01,0xff,0,0x01,0x80};
+  uint8_t cmd2[5]={0x21,0x00,0x2f,0xff,0xff};
+  uint8_t RX[8];
+  uint8_t RX2[8]={0,0,0,0,0,0,0,0};
+  uint32_t Put_index1;*/
   for(;;)
   {
-	  ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
+	  /*DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_8;
+	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,cmd1);
+	  //osDelay(2000);
+	  Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+	  while(_NO_RX_FIFO1_NEW_MESSAGE)
+	  {
+		  __NOP();
+	  }
+	  HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, RX);
+	  DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
+	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,cmd2);
+	  //osDelay(2000);
+	  Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+	  while(_NO_RX_FIFO1_NEW_MESSAGE)
+	  {
+		  __NOP();
+	  }
+	  HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, RX2);
+	  __NOP();*/
+	 ulTaskNotifyTake(pdFALSE,portMAX_DELAY);
 	  
 	  while(SEND_GEAR_LEVER==true)
 	 {
@@ -484,6 +512,7 @@ void Send_GearLever(void *argument)
 	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TORQUE_AT_CANHS_RNr_02,GEAR_LEVER);
 	  osDelay(10);
 	 }
+	  
       
   }
 }
@@ -1150,29 +1179,15 @@ void SBR10_RUN(void *argument)
 }
 void UDS1_RUN(void *argument)
 {
-  uint8_t ECU_reset[3]={0x02,0x11,0x01};
-  uint8_t UDS_response[8]={0,};
-  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0; 	  
-   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
-   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,ECU_reset);
-   store_CANframeTX(0,ECU_reset,sizeof(ECU_reset),DTOOL_to_AIRBAG.Identifier);
-   while(_NO_RX_FIFO1_NEW_MESSAGE)
-   {
-	__NOP();
-   }
-   HAL_Delay(100);
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-   store_CANframeRX(1,UDS_response, RxHeader.DataLength);
+   Send_Request(ECU_RESET,0);
 /*------------------------Forming output-------------------------------------*/		
-   Send_Result();
-   memset(UDS_response,0x00,sizeof(UDS_response));   
+   Send_Result(); 
   }
 }	
 void UDS2_RUN(void *argument)
@@ -1354,18 +1369,17 @@ void UDS4b_RUN(void *argument)
  uint8_t UDS_request[4]={0x03,0x28,0x03,0x03};
  uint8_t UDS_response[8]={0,};
  uint32_t Put_index1 =0;
- uint32_t Put_indexF0_1,Put_indexF0_2 =0;
   /* Infinite loop */
   for(;;)
   {
-   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);	  
+   ulTaskNotifyTake(pdTRUE,portMAX_DELAY);	
+   FDCAN_ENABLE_INTERRUPTS();	  
    Send_Request(ENTER_EXTENDED_DIAGNOSTIC,6);
    EnterSecurityAccess();
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
    SEND_TESTER_PRESENT=true;
    xTaskNotifyGive(Send_periodicHandle);
-   FDCAN_ENABLE_INTERRUPTS();
    Send_Request(ENTER_EXTENDED_DIAGNOSTIC,10);
    Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;      
@@ -1376,12 +1390,16 @@ void UDS4b_RUN(void *argument)
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-   store_CANframeRX(9,UDS_response, RxHeader.DataLength);	   
+   store_CANframeRX(9,UDS_response, RxHeader.DataLength);
+   osDelay(1000);   
 /*------------------------Forming output-------------------------------------*/	
-   Put_indexF0_1=FDCAN_Get_FIFO_Put_index(FIFO0);
-   osDelay(2000);
-   Put_indexF0_2=FDCAN_Get_FIFO_Put_index(FIFO0);
-   Output.measuredValue[0]=Put_indexF0_2-Put_indexF0_1;
+  // osDelay(1000);
+   HAL_FDCAN_MspDeInit(&hfdcan1);
+   __NOP();
+   __NOP();
+   HAL_FDCAN_MspInit(&hfdcan1);
+   osDelay(1000);
+   Output.measuredValue[0]=(FDCAN1->PSR)&0x00000001;
    Output.measuredValue_count++;		   
    Send_Result();
    xTaskNotifyStateClear(Send_periodicHandle);
@@ -1433,7 +1451,7 @@ uint8_t NEW_MESSAGES_COUNT;
     Input.testNumber=0;
 	DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,READ_SUPPORTED_DTC);
-	osDelay(1000);
+	HAL_Delay(1000);
 	HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);  
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,print_DTC);
    /*---------------------Получение первого DTC-----------------------*/ 
@@ -1462,58 +1480,58 @@ uint8_t NEW_MESSAGES_COUNT;
    	  store_CANframeRX(i+1,UDS_response,RxHeader.DataLength);
 	}
 	Send_Result();
+	NVIC_SystemReset();
   }
 }
 void UDS7_RUN(void *argument)
 {
- uint8_t Erase_DTC[5]={0x04,0x14,0xFF,0xFF,0xFF};
  uint8_t DIAG_OFF[3]={0x02,0x85,0x02};
  uint8_t UDS_response[8]={0,};
  uint32_t Put_index1 =0;
   /* Infinite loop */
   for(;;)
   {
-  /* ПРОВЕРЬТЕ СОПРОТИВЛЕНИЕ*/
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
-/*-------------------------очистка DTC--------------------------------------*/   
-   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1); 
-   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;      
-   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Erase_DTC);
-   //store_CANframeTX(0,Erase_DTC,sizeof(Erase_DTC),DTOOL_to_AIRBAG.Identifier);
-   while(_NO_RX_FIFO1_NEW_MESSAGE)
-   {
-	__NOP();
-   }
-   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
-   //store_CANframeRX(1,UDS_response,sizeof(RxHeader.DataLength));
+/*-------------------------очистка DTC--------------------------------------*/ 
+   Send_Request(ENTER_EXTENDED_DIAGNOSTIC,0);
+   EnterSecurityAccess();	  
+   Send_Request(CLEAR_DIAGNOSTIC_INFORMATION,0);
 /*-------------------------отключение самодиагностики и чтение ошибок--------------------------------------*/ 
-   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;      
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DIAG_OFF[2]=2;	  
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_OFF);
-   //store_CANframeTX(2,Erase_DTC,sizeof(Erase_DTC),DTOOL_to_AIRBAG.Identifier);
+   store_CANframeTX(2,DIAG_OFF,sizeof(DIAG_OFF),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(3,UDS_response,sizeof(UDS_response));
+   Send_Result();
    UDS_READ_ERRORS(0x09);
    Send_Result();
    /*вывести dtc и Warning с указанием поменять сопротивление*/
    /*ждем сообщения что мы изменили сопротивление, считываем ошибки, отправляем*/
-   while(UARTRXcmd[0]==0){__NOP();}
-   UARTRXcmd[0]=0;
-   UDS_READ_ERRORS(0x09);
-   Send_Result();
+   
    /*-------------------------Включение самодиагностики,ожидание 10с. и чтение ошибок--------------------------------------*/ 
-   DIAG_OFF[2]-=1;      
+   Send_Request(ENTER_EXTENDED_DIAGNOSTIC,0);
+   EnterSecurityAccess();
+   CLEAR_OUTPUT();
+   Put_index1=FDCAN_Get_FIFO_Put_index(FIFO1);
+   DIAG_OFF[2]=1;
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_3;   
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,DIAG_OFF);
-   //store_CANframeTX(2,Erase_DTC,sizeof(Erase_DTC),DTOOL_to_AIRBAG.Identifier);
+   store_CANframeTX(0,DIAG_OFF,sizeof(DIAG_OFF),DTOOL_to_AIRBAG.Identifier);
    while(_NO_RX_FIFO1_NEW_MESSAGE)
    {
 	__NOP();
    }
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
+   store_CANframeRX(1,UDS_response,sizeof(UDS_response));
+   Send_Result();
    HAL_Delay(10000);
    UDS_READ_ERRORS(0x09);
    Send_Result();
@@ -1546,7 +1564,11 @@ void UDS9_RUN(void *argument)
    Output.testNumber=Input.testNumber;
    if(Input.testNumber==0x3B)
    {
-	   Mode[3]=0x5a;
+	   Mode[4]=0x5a;
+   }
+   else
+   {
+	  Mode[4]=0xA5; 
    }
    Input.testNumber=0;
 /*-------------------Входим в securityaccess---------------*/
@@ -1887,6 +1909,7 @@ void EDR_Transmitter(void *argument)
 	uint8_t EDR_consequtive[4]={0x30,0x00,0x00,0x00};
 	uint8_t CANRxdata[8]={0,};
 	uint8_t EDR_buffer[900]={0,};
+	uint8_t num[2]={0,0};
 	int8_t RXcounter=-1;
 	uint32_t Put_index1=0;
 	uint8_t GET_NUMBER_REQUEST[4]={0x03,0x22,0xE3,0x14};
@@ -1904,6 +1927,13 @@ void EDR_Transmitter(void *argument)
    xTaskNotifyGive(EDR10msHandle);
    xTaskNotifyGive(EDR20msHandle);
    xTaskNotifyGive(EDR3000msHandle);
+   osDelay(6000);
+   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;
+   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,GET_NUMBER_REQUEST);
+   HAL_Delay(1000);
+   HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, CANRxdata);	
+   osDelay(10);
+   num[0]=CANRxdata[4];  
    while(timeX<0)
    {		
     HAL_SPI_TransmitReceive_IT(&hspi3,SPI_resp,SPI_RXbuf,4);//1000);	
@@ -1926,6 +1956,7 @@ void EDR_Transmitter(void *argument)
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,GET_NUMBER_REQUEST);
    HAL_Delay(1000);
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, CANRxdata);
+   num[1]=CANRxdata[4];
    switch(CANRxdata[4])
    {
 	   case 0:
@@ -1967,6 +1998,8 @@ void EDR_Transmitter(void *argument)
 		EDR_buffer[7*(RXcounter+1)+3+i]=CANRxdata[i+1];
 	  }
 	HAL_UART_Transmit(&huart7,EDR_buffer,7*(RXcounter+1)+8,1000);
+	osDelay(1000);
+	HAL_UART_Transmit(&huart7,num,2,1000);
 	SEND_PERIODIC_MESSAGES=false;
     xTaskNotifyStateClear(Send_periodicHandle);
     xTaskNotifyStateClear(EDR10msHandle);
@@ -2010,5 +2043,23 @@ void EDR3000ms_RUN(void *argument)
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&TIME_R_1,time_r_1);
 		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&MIL_ECM,mil_ecm);
 		osDelay(3000);
+	}
+}
+void READDTC_RUN(void *argument)
+{
+	uint8_t status_byte;
+	for(;;)
+	{
+		ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+		if(Input.testNumber==0x51)
+		{
+			status_byte=0x09;
+		}
+		else
+		{
+			status_byte=0x08;
+		}
+		UDS_READ_ERRORS(status_byte);
+		Send_Result();
 	}
 }

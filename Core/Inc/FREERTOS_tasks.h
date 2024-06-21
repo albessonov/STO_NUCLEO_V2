@@ -52,6 +52,7 @@ void UDS4a_RUN(void *argument);
 void UDS4b_RUN(void *argument);
 void UDS5_RUN(void *argument);
 void UDS6_RUN(void *argument);
+void UDS7_RUN(void *argument);
 void UDS8_RUN(void *argument);
 void UDS9_RUN(void *argument);
 void UDS10_RUN(void *argument);
@@ -72,6 +73,7 @@ void EDR10ms_RUN(void *argument);
 void EDR20ms_RUN(void *argument);
 void EDR3000ms_RUN(void *argument);
 
+void READDTC_RUN(void *argument);
 /*Exported task prototypes*/
 extern osThreadId_t Init_testHandle;
 extern osThreadId_t CAN_periodHandle;
@@ -89,6 +91,7 @@ extern osThreadId_t UDS4aHandle;
 extern osThreadId_t UDS4bHandle;
 extern osThreadId_t UDS5Handle;
 extern osThreadId_t UDS6Handle;
+extern osThreadId_t UDS7Handle;
 extern osThreadId_t UDS8Handle;
 extern osThreadId_t UDS9Handle;
 extern osThreadId_t UDS10Handle;
@@ -122,6 +125,6 @@ extern osThreadId_t EDR10msHandle;
 extern osThreadId_t EDR20msHandle;
 extern osThreadId_t EDR3000msHandle;
 
-
+extern osThreadId_t READDTCHandle;
 
 
