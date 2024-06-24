@@ -21,7 +21,7 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __MAIN_H
 #define __MAIN_H
-#define DEBUG_MODE
+//#define DEBUG_MODE
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -69,8 +69,10 @@ void EnterSecurityAccess(void);
 void store_CANframeTX(uint8_t framenum,uint8_t* data, size_t length,uint16_t ID);
 void ClearDTC(uint8_t OutputFrameStartPosition);
 uint8_t FDCAN_Get_FIFO_Put_index(bool FIFOnbr);
-void Send_Request(uint8_t Request_to_send);
+void Send_Request(uint8_t Request_to_send,uint8_t StartPositionInOutput);
 void Write_VIN(bool VIN_to_WRITE);
+void CheckACUConfiguration(void);
+void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -95,6 +97,8 @@ void Write_VIN(bool VIN_to_WRITE);
 #define POWER_GOOD_EXTI_IRQn EXTI0_IRQn
 #define CH11_Pin GPIO_PIN_14
 #define CH11_GPIO_Port GPIOB
+#define CH5_Pin GPIO_PIN_12
+#define CH5_GPIO_Port GPIOB
 #define CH11_EXTI_IRQn EXTI15_10_IRQn
 #define CH0_Pin GPIO_PIN_12
 #define CH0_GPIO_Port GPIOE

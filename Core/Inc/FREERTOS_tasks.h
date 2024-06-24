@@ -1,6 +1,6 @@
 /*Private defines*/
-#define fastened GPIO_PIN_SET
-#define unfastened GPIO_PIN_RESET
+#define fastened GPIO_PIN_RESET
+#define unfastened GPIO_PIN_SET
 #define _40KMH 1
 #define _15KMH 0
 #define DRIVER_DOOR_OPEN 0b00001000
@@ -10,21 +10,30 @@
 #define Sleeping 0
 #define EngineRunning 1
 #define _NO_RX_FIFO1_NEW_MESSAGE ((FDCAN1->RXF1S)&0x00FF0000)>>16==Put_index1
+#define _NO_RX_FIFO0_NEW_MESSAGE ((FDCAN1->RXF0S)&0x00FF0000)>>16==Put_index1
 #define ECU_RESET 20
 #define ENTER_EXTENDED_DIAGNOSTIC 30
 #define CLEAR_DIAGNOSTIC_INFORMATION 50
+#define RETURN_CONTROL_TO_ECU 60
+#define ERASE_CRASH 40
 /*Masks to generate key to enter security access*/
 #define Mask02 0xE94A2291 // ECUProgrammingSession
 #define Mask03 0xD2944523 // ExtendedDiagnosticSession 
 #define FIFO0 0
 #define FIFO1 1
+
+#define PLANT_MODE 0x5A
+#define WORKING_MODE 0xA5
 /*Task handling functions*/
 void vApplicationIdleHook( void );
 void Init_test_run(void *argument);
 void CAN_2_RUN(void *argument);
 void Accelerometer1_RUN(void *argument);
 void Accelerometer_period_RUN(void *argument);
+void ValidAB_RUN(void *argument);
+	
 void Send_periodic_start(void *argument);
+void Send_GearLever(void *argument);
 
 void SBR1_RUN(void *argument);
 void SBR2_RUN(void *argument);
@@ -32,6 +41,9 @@ void SBR3_4_RUN(void *argument);
 void SBR5_RUN(void *argument);
 void SBR6_RUN(void *argument);
 void SBR7_RUN(void *argument);
+void SBR8_RUN(void *argument);
+void SBR9_RUN(void *argument);
+void SBR10_RUN(void *argument);
 
 void UDS1_RUN(void *argument);
 void UDS2_RUN(void *argument);
@@ -40,6 +52,7 @@ void UDS4a_RUN(void *argument);
 void UDS4b_RUN(void *argument);
 void UDS5_RUN(void *argument);
 void UDS6_RUN(void *argument);
+void UDS7_RUN(void *argument);
 void UDS8_RUN(void *argument);
 void UDS9_RUN(void *argument);
 void UDS10_RUN(void *argument);
@@ -54,16 +67,23 @@ void DIAG5_RUN(void *argument);
 void DIAG6_RUN(void *argument);
 void DIAG7_8_RUN(void *argument);
 void DIAG9_RUN(void *argument);
-//void DIAG10_RUN(void *argument);
+void DIAG10_RUN(void *argument);
 
+void EDR10ms_RUN(void *argument);
+void EDR20ms_RUN(void *argument);
+void EDR3000ms_RUN(void *argument);
 
+void READDTC_RUN(void *argument);
 /*Exported task prototypes*/
 extern osThreadId_t Init_testHandle;
 extern osThreadId_t CAN_periodHandle;
+extern osThreadId_t ValidABHandle;
+
 extern osThreadId_t Accelerometer_periodHandle;
 extern osThreadId_t Accelerometer_runHandle;
-extern osThreadId_t Send_periodicHandle;
 
+extern osThreadId_t Send_periodicHandle;
+extern osThreadId_t SendGearLeverHandle;
 extern osThreadId_t UDS1Handle;
 extern osThreadId_t UDS2Handle;
 extern osThreadId_t UDS3Handle;
@@ -71,6 +91,7 @@ extern osThreadId_t UDS4aHandle;
 extern osThreadId_t UDS4bHandle;
 extern osThreadId_t UDS5Handle;
 extern osThreadId_t UDS6Handle;
+extern osThreadId_t UDS7Handle;
 extern osThreadId_t UDS8Handle;
 extern osThreadId_t UDS9Handle;
 extern osThreadId_t UDS10Handle;
@@ -83,6 +104,9 @@ extern osThreadId_t SBR3_4Handle;
 extern osThreadId_t SBR5Handle;
 extern osThreadId_t SBR6Handle;
 extern osThreadId_t SBR7Handle;
+extern osThreadId_t SBR8Handle;
+extern osThreadId_t SBR9Handle;
+extern osThreadId_t SBR10Handle;
 
 extern osThreadId_t EDRHandle;
 
@@ -96,6 +120,11 @@ extern osThreadId_t DIAG8Handle;
 extern osThreadId_t DIAG9Handle;
 
 extern osThreadId_t EDRHandle;
-//extern osThreadId_t DIAG10Handle;
+
+extern osThreadId_t EDR10msHandle;
+extern osThreadId_t EDR20msHandle;
+extern osThreadId_t EDR3000msHandle;
+
+extern osThreadId_t READDTCHandle;
 
 
