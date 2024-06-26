@@ -19,7 +19,7 @@ extern uint8_t SPI_resp[4];//={0x87,0xF3,0x40,0x04};
 extern volatile double timeX,timeY;
 extern uint32_t ctr2;
 extern uint32_t ctr0;
-extern uint32_t TTF;
+extern uint32_t TTF_DAB,TTF_PAB,TTF_DPT,TTF_PPT,TTF_DSAB,TTF_PSAB,TTF_DCAB;
 extern uint32_t FRONT_100_50_X_transformed[801];
 extern uint32_t FRONT_100_50_Y_transformed[801];
 extern uint8_t Request0x2cmd[4];
@@ -57,7 +57,11 @@ void vApplicationIdleHook( void )
    pb_istream_t RXstream = pb_istream_from_buffer(UARTRXcmd, sizeof(UARTRXcmd));
    pb_decode(&RXstream, TestData_fields, &Input);
   }
-
+  if(UARTRXcmd[0]==0xBB)
+  {
+    HAL_UART_Transmit(&huart7,UARTRXcmd,1,1000);
+    memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
+  }
   if(Input.method==Method_SET)//0
   {
 	if(Input.testNumber == 0x11)
@@ -305,7 +309,7 @@ void vApplicationIdleHook( void )
      memset(UARTRXcmd,0x00,sizeof(UARTRXcmd));
      while(RxHeader.Identifier!=0x653){ 
      HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CANRxData);}
-	 CrashDetectionOutOfOrder=((CANRxData[3])&0x02)>>1;
+	 CrashDetectionOutOfOrder=((CANRxData[0])&0b01000000)>>6;
 	 Output.measuredValue[0]=CrashDetectionOutOfOrder;
 	 Output.measuredValue_count++;
      Send_Result();	 
@@ -414,12 +418,21 @@ void Accelerometer1_RUN(void *argument)
    ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
    Output.testNumber=Input.testNumber;
    Input.testNumber=0;
+   TTF_DAB=0;
+   TTF_PAB=0;
+   TTF_DPT=0;
+   TTF_PPT=0;
+   TTF_DSAB=0;
+   TTF_PSAB=0;
+   TTF_DCAB=0;
    if(Input.AIRBAG_OFF==true)
    {
 	HAL_GPIO_WritePin(SQUIB_SW_CTRL_GPIO_Port,SQUIB_SW_CTRL_Pin,GPIO_PIN_RESET);//Нажатие кнопки отключения ПБ переднего пассажира       
    }
    CRASH_OCCURED_FLAG=false;
    Output.measuredValue_count=7;
+   Send_Request(ECU_RESET,0);
+   osDelay(10000);
    CheckACUConfiguration();
    Send_Request(ERASE_CRASH,0);
    osDelay(1);
@@ -1532,7 +1545,7 @@ void UDS7_RUN(void *argument)
    HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO1, &RxHeader, UDS_response);
    store_CANframeRX(1,UDS_response,sizeof(UDS_response));
    Send_Result();
-   HAL_Delay(10000);
+   HAL_Delay(15000);
    UDS_READ_ERRORS(0x09);
    Send_Result();
    		 
@@ -1927,7 +1940,7 @@ void EDR_Transmitter(void *argument)
    xTaskNotifyGive(EDR10msHandle);
    xTaskNotifyGive(EDR20msHandle);
    xTaskNotifyGive(EDR3000msHandle);
-   osDelay(6000);
+   osDelay(7000);
    DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_4;
    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,GET_NUMBER_REQUEST);
    HAL_Delay(1000);

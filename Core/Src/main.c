@@ -596,7 +596,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	   }
 	   break;
 	  }
-	case CH7_Pin:///7
+	case CH7_Pin:
 	  {			
 	   CRASH_OCCURED_FLAG=true;
 	   if(TTF_DSAB==0)
@@ -1676,7 +1676,7 @@ void ChangeOperatingState(uint8_t Mode,uint8_t StartPositionInOutput)
   uint32_t Put_index1;
   uint8_t Change_State[5]={0x04,0x2e,0xd1,0x00,Mode};
   uint8_t Response[8];
-  //Send_Request(ENTER_EXTENDED_DIAGNOSTIC);
+  //Send_Request(ENTER_EXTENDED_DIAGNOSTIC,0);
   DTOOL_to_AIRBAG.DataLength=FDCAN_DLC_BYTES_5;
   HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1,&DTOOL_to_AIRBAG,Change_State);
   store_CANframeTX(StartPositionInOutput,Change_State,5,DTOOL_to_AIRBAG.Identifier);
